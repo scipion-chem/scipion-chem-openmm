@@ -35,6 +35,6 @@ setup(
     install_requires=[requirements],
     entry_points={'pyworkflow.plugin': 'openmm = openmm'},
     package_data={  # Optional
-       'scipionOpenmm': ['openmm_logo.png', 'protocols.conf'],
+       'openmm': ['openmm_logo.png', 'protocols.conf'],
     }
 )
