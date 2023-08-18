@@ -23,17 +23,17 @@ with open('requirements.txt') as f:
 # Fields marked as "Optional" may be commented out.
 
 setup(
-    name='scipion-chem-scipionOpenmm',  # Required
+    name='scipion-chem-openmm',  # Required
     version='0.1',  # Required
-    description='Scipion plugin in order to use scipionOpenmm software',  # Required
+    description='Scipion plugin in order to use openmm software',  # Required
     long_description=long_description,  # Optional
-    url='https://github.com/scipion-chem/scipion-chem-scipionOpenmm',  # Optional
+    url='https://github.com/scipion-chem/scipion-chem-openmm',  # Optional
     author='Daniel Del Hoyo',  # Optional
     author_email='ddelhoyo@cnb.csic.es',  # Optional
-    keywords='scipion scipionOpenmm scipion-3.0 cheminformatics',  # Optional
+    keywords='scipion openmm scipion-3.0 cheminformatics',  # Optional
     packages=find_packages(),
     install_requires=[requirements],
-    entry_points={'pyworkflow.plugin': 'scipionOpenmm = scipionOpenmm'},
+    entry_points={'pyworkflow.plugin': 'openmm = openmm'},
     package_data={  # Optional
        'scipionOpenmm': ['openmm_logo.png', 'protocols.conf'],
     }
