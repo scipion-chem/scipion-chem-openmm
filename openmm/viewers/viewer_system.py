@@ -24,19 +24,13 @@
 # *
 # **************************************************************************
 
-import os, glob
-import pyworkflow.protocol.params as params
+import os
 
-from pwem.objects import SetOfAtomStructs, AtomStruct
-from pwem.viewers import ChimeraViewer, EmPlotter
-
-from pwchem.viewers import VmdViewPopen, MDSystemViewer, MDSystemPViewer
+from pwchem.viewers import VmdViewPopen, MDSystemPViewer
 from pwchem.utils import natural_sort
 from pwchem.constants import TCL_MD_STR
 
-from scipionOpenmm import Plugin as openmmPlugin
-from scipionOpenmm.objects import OpenMMSystem
-from scipionOpenmm.protocols import ProtOpenMMSystemPrep
+from ..objects import OpenMMSystem
 
 class OpenMMSystemPViewer(MDSystemPViewer):
     """ Visualize the output of OpenMM simulation """

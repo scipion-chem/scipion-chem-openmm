@@ -34,14 +34,12 @@ import os
 from pyworkflow.protocol import params
 from pyworkflow.utils import Message
 from pwem.protocols import EMProtocol
-from pwem.convert import AtomicStructHandler
 
-from pwchem.utils import runOpenBabel, getBaseName
-from pwchem import Plugin as pwchemPlugin
+from pwchem.utils import getBaseName
 
-from scipionOpenmm import Plugin as openmmPlugin
-from scipionOpenmm.constants import OPENMM_DIC
-from scipionOpenmm.objects import OpenMMSystem
+from .. import Plugin
+from ..constants import OPENMM_DIC
+from ..objects import OpenMMSystem
 
 
 class ProtOpenMMSystemPrep(EMProtocol):
@@ -158,9 +156,7 @@ class ProtOpenMMSystemPrep(EMProtocol):
 
 
     def solvateStep(self):
-      outDir = os.path.abspath(self._getExtraPath())
       inFile = self.getSystemFilename()
-      systemBasename = self.getSystemName()
 
       with open(self.getParamsFile(), 'w') as f:
         f.write('inputFile :: {}\n'.format(inFile))
@@ -184,7 +180,7 @@ class ProtOpenMMSystemPrep(EMProtocol):
         f.write('cationType :: {}\n'.format(self.getEnumText('cationType')))
         f.write('anionType :: {}\n'.format(self.getEnumText('anionType')))
 
-      openmmPlugin.runScript(self, 'openmmPrepareSystem.py', args=self.getParamsFile(), env=OPENMM_DIC,
+      Plugin.runScript(self, 'openmmPrepareSystem.py', args=self.getParamsFile(), env=OPENMM_DIC,
                              cwd=self._getPath())
 
 
