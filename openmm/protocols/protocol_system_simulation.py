@@ -34,14 +34,12 @@ import os
 from pyworkflow.protocol import params
 from pyworkflow.utils import Message
 from pwem.protocols import EMProtocol
-from pwem.convert import AtomicStructHandler
 
-from pwchem.utils import runOpenBabel, getBaseName
-from pwchem import Plugin as pwchemPlugin
+from pwchem.utils import getBaseName
 
-from scipionOpenmm import Plugin as openmmPlugin
-from scipionOpenmm.constants import OPENMM_DIC
-from scipionOpenmm.objects import OpenMMSystem
+from .. import Plugin
+from ..constants import OPENMM_DIC
+from ..objects import OpenMMSystem
 
 
 class ProtOpenMMSystemSimulation(EMProtocol):
@@ -118,9 +116,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
 
     def simulateStep(self):
-      outDir = os.path.abspath(self._getExtraPath())
       inFile = self.getSystemFilename()
-      systemBasename = self.getSystemName()
 
       with open(self.getParamsFile(), 'w') as f:
         f.write('inputFile :: {}\n'.format(inFile))
@@ -135,13 +131,13 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
         integrator = self.getEnumText('integrator')
         f.write('integrator :: {}\n'.format(integrator))
-        if not self.integrator.get() in [0, 5]:
+        if self.integrator.get() not in [0, 5]:
           f.write('temperature :: {}\n'.format(self.temperature.get()))
 
-        if not self.integrator.get() in [5, 6]:
+        if self.integrator.get() not in [5, 6]:
           f.write('stepSize :: {}\n'.format(self.stepSize.get()))
 
-        if not self.integrator.get() in [0, 3, 5]:
+        if self.integrator.get() not in [0, 3, 5]:
           f.write('fricCoef :: {}\n'.format(self.fricCoef.get()))
 
         f.write('addMinimization :: {}\n'.format(self.addMinimization.get()))
@@ -154,7 +150,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
           f.write('pressure :: {}\n'.format(self.pressure.get()))
           f.write('temperature :: {}\n'.format(self.temperature.get()))
 
-      openmmPlugin.runScript(self, 'openmmSimulateSystem.py', args=self.getParamsFile(), env=OPENMM_DIC,
+      Plugin.runScript(self, 'openmmSimulateSystem.py', args=self.getParamsFile(), env=OPENMM_DIC,
                              cwd=self._getPath())
 
 

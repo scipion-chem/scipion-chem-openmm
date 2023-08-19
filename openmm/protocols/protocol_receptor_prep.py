@@ -37,7 +37,7 @@ from pwem.objects import AtomStruct
 
 from pwchem.protocols import ProtChemPrepareReceptor
 
-from scipionOpenmm import Plugin as openmmPlugin
+from .. import Plugin
 
 
 class ProtOpenMMReceptorPrep(ProtChemPrepareReceptor):
@@ -68,7 +68,7 @@ class ProtOpenMMReceptorPrep(ProtChemPrepareReceptor):
         form.addParam('repNonStd', params.BooleanParam, default=False, label="Replace non-standard residues: ",
                       help='Use PDBFixer to replace nonstandard residues with standard equivalents')
 
-        clean = self.defineCleanParams(form)
+        self.defineCleanParams(form)
 
     def _insertAllSteps(self):
         self._insertFunctionStep('preparationStep')
@@ -79,7 +79,7 @@ class ProtOpenMMReceptorPrep(ProtChemPrepareReceptor):
         pdbFile = os.path.abspath(self.getPreparedFile())
         addResStr = ' --add-residues' if self.addRes else ''
         repNStdStr = ' --replace-nonstandard' if self.repNonStd else ''
-        openmmPlugin.runOpenMM(self, 'pdbfixer', args='{} --add-atoms={}{}{} --output {}'.
+        Plugin.runOpenMM(self, 'pdbfixer', args='{} --add-atoms={}{}{} --output {}'.
                                format(pdbFile, self.getEnumText('addAtoms').lower(), addResStr, repNStdStr, pdbFile))
 
     def createOutput(self):

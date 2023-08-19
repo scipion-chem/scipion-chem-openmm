@@ -24,7 +24,7 @@
 # *
 # **************************************************************************
 
-import os, subprocess
+import os
 
 from scipion.install.funcs import InstallHelper
 
@@ -62,8 +62,8 @@ class Plugin(pwchem.Plugin):
     # ---------------------------------- Utils functions  -----------------------
     @classmethod
     def getPluginHome(cls, path=""):
-        import scipionOpenmm
-        fnDir = os.path.split(scipionOpenmm.__file__)[0]
+        import openmm
+        fnDir = os.path.split(openmm.__file__)[0]
         return os.path.join(fnDir, path)
 
     @classmethod
