@@ -49,14 +49,9 @@ if __name__ == "__main__":
     forcefield = ForceField(pDic['mFF'], pDic['wFF'])
 
     sysKwargs = {"nonbondedMethod": eval(pDic['nbMethod'])}
-    if pDic['nbMethod'] != 'NoCutoff' and False:
-      sysKwargs.update({"nonbondedCutoff": pDic['nbCutoff'] * nanometer})
-
-    if pDic['constraints'] != 'None':
-      sysKwargs.update({"constraints": pDic['constraints']})
-
+    sysKwargs.update({"nonbondedCutoff": float(pDic['nbCutoff']) * nanometer})
+    sysKwargs.update({"constraints": eval(pDic['constraints'])})
     system = forcefield.createSystem(pdb.topology, **sysKwargs)
-
 
     if eval(pDic['addBarostat']):
       system.addForce(MonteCarloBarostat(float(pDic['pressure']) * bar, float(pDic['temperature']) * kelvin))

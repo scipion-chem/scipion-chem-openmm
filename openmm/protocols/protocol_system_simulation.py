@@ -62,12 +62,12 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                       help='Number of steps for simulation')
 
         cGroup = form.addGroup('Constraints')
-        cGroup.addParam('constraints', params.EnumParam, default=0, label="Constraints: ",
+        cGroup.addParam('constraints', params.EnumParam, default=1, label="Constraints: ",
                         choices=['None', 'HBonds', 'AllBonds', 'HAngles'],
                         help='http://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
 
         mGroup = form.addGroup('Minimization')
-        mGroup.addParam('addMinimization', params.BooleanParam, default=False, label="Add minimization: ",
+        mGroup.addParam('addMinimization', params.BooleanParam, default=True, label="Add minimization: ",
                       help='Add energy minimization')
         mGroup.addParam('minimTol', params.FloatParam, default=10, label="Minimization tolerance (kJ/mol): ",
                       condition='addMinimization',
@@ -165,6 +165,17 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
       self._defineOutputs(outputSystem=outSystem)
       self._defineSourceRelation(self.inputStructure, outSystem)
+
+
+
+    def _warnings(self):
+      ws = []
+      if self.constraints.get() == 0:
+        ws.append('Running the simulation without restraints might lead to errors in the simulation.\n')
+
+      if not self.addMinimization.get():
+        ws.append('Running the simulation without a prior minimization might lead to errors in the simulation.\n')
+      return ws
 
 
     def getWaterModel(self, wFF):
