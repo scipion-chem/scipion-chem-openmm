@@ -26,7 +26,6 @@
 # **************************************************************************
 
 import sys, os
-from sys import stdout
 
 from openmm.app import *
 from openmm import *
@@ -44,6 +43,7 @@ def parseParams(paramsFile):
 if __name__ == "__main__":
     pDic = parseParams(sys.argv[1])
     sysName = os.path.splitext(os.path.basename(pDic['inputFile']))[0]
+    nTraj = int(pDic['nTraj'])
 
     pdb = PDBFile(pDic['inputFile'])
     forcefield = ForceField(pDic['mFF'], pDic['wFF'])
@@ -68,26 +68,34 @@ if __name__ == "__main__":
       intArgs.append(float(pDic['stepSize']) * picoseconds)
 
     integrator = intClass(*intArgs)
-    simulation = Simulation(pdb.topology, system, integrator)
+
+    properties = {}
+    if 'gpus' in pDic:
+      properties.update({'DeviceIndex': pDic['gpus'].strip()})
+    simulation = Simulation(pdb.topology, system, integrator, platformProperties=properties)
     simulation.context.setPositions(pdb.positions)
 
     if eval(pDic['addMinimization']):
       print('Running {} minimization steps or until <= {} kJ/mol'.format(pDic['maxIter'], pDic['minimTol']))
       sys.stdout.flush()
-      simulation.reporters.append(PDBReporter('outputMin.pdb', 10))
+      simulation.reporters.append(StateDataReporter(sys.stdout, nTraj, step=True,
+                                                    potentialEnergy=True, temperature=True, volume=True))
+      simulation.reporters.append(StateDataReporter("min_log.txt", nTraj, step=True,
+                                                    potentialEnergy=True, temperature=True, volume=True))
       simulation.minimizeEnergy(tolerance=float(pDic['minimTol'])*kilojoules_per_mole/nanometer,
                                 maxIterations=int(pDic['maxIter']))
 
     # Set up the reporters to report energies every 1000 steps.
-    simulation.reporters.append(PDBReporter('output.pdb', 10))
-    simulation.reporters.append(StateDataReporter(stdout, 10, step=True,
-                                                  potentialEnergy=True, temperature=True, volume=True))
-    simulation.reporters.append(StateDataReporter("md_log.txt", 10, step=True,
+    simulation.reporters.append(DCDReporter(f'{sysName}.dcd', nTraj))
+    simulation.reporters.append(StateDataReporter("md_log.txt", nTraj, step=True,
                                                   potentialEnergy=True, temperature=True, volume=True))
     # run simulation
     print('Running {} steps simulation'.format(pDic['nSteps']))
     sys.stdout.flush()
     simulation.step(int(pDic['nSteps']))
+
+    positions = simulation.context.getState(getPositions=True).getPositions()
+    PDBFile.writeFile(simulation.topology, positions, open(f'{sysName}.pdb', 'w'))
 
 
 
