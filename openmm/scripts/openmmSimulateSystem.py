@@ -25,9 +25,12 @@
 # *
 # **************************************************************************
 
+# General imports
 import sys, os
 
-from openmm.app import *
+# Openmm imports
+from openmm.app import PDBFile, ForceField, Simulation, StateDataReporter,\
+  DCDReporter, NoCutoff, HBonds
 from openmm import *
 from openmm.unit import *
 
