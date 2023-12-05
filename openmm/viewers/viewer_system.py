@@ -82,8 +82,8 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       step = data[:, 0]
 
       if self.repFeature.get() == PENERGY:
-        potential_energy = data[:, 1]
-        plt.plot(step, potential_energy)
+        potentialEnergy = data[:, 1]
+        plt.plot(step, potentialEnergy)
         plt.title(f'{system.getSystemName()} trajectory potential energy')
         plt.xlabel("Step")
         plt.ylabel("Potential energy (kJ/mol)")
