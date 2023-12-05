@@ -27,7 +27,7 @@
 
 import sys, os
 
-from openmm.app import PDBFile, ForceField, Simulation, StateDataReporter, DCDReporter
+from openmm.app import *
 from openmm import *
 from openmm.unit import *
 
