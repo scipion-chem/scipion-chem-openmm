@@ -51,15 +51,24 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
-
         """ Define the input parameters that will be used.
         """
+        form.addHidden(params.USE_GPU, params.BooleanParam, default=True,
+                       label="Use GPU for execution: ",
+                       help="This protocol has both CPU and GPU implementation.\
+                                                 Select the one you want to use.")
+        form.addHidden(params.GPU_LIST, params.StringParam, default='0', label="Choose GPU IDs",
+                       help="Add a list of GPU devices that can be used")
 
         form.addSection(label=Message.LABEL_INPUT)
         form.addParam('inputSystem', params.PointerParam, label="Input structure: ", allowsNull=False,
                       important=True, pointerClass='OpenMMSystem', help='OpenMMSystem to execute the simulation over')
         form.addParam('nSteps', params.IntParam, default=10000, label="Number of simualtion steps: ",
                       help='Number of steps for simulation')
+
+        tGroup = form.addGroup('Trajectory')
+        tGroup.addParam('nTraj', params.IntParam, default=100, label="Steps interval: ",
+                        help='Save the state of the system each x steps for the trajectory')
 
         cGroup = form.addGroup('Constraints')
         cGroup.addParam('constraints', params.EnumParam, default=1, label="Constraints: ",
@@ -150,22 +159,29 @@ class ProtOpenMMSystemSimulation(EMProtocol):
           f.write('pressure :: {}\n'.format(self.pressure.get()))
           f.write('temperature :: {}\n'.format(self.temperature.get()))
 
+        f.write(f'nTraj :: {self.nTraj.get()}\n')
+        if getattr(self, params.USE_GPU).get():
+          f.write(f'gpus :: {getattr(self, params.GPU_LIST)}\n')
+
       Plugin.runScript(self, 'openmmSimulateSystem.py', args=self.getParamsFile(), env=OPENMM_DIC,
                              cwd=self._getPath())
 
 
     def createOutputStep(self):
-      systemBasename = self.getSystemName()
-      outSystemFile = self._getPath('{}_system.pdb'.format(systemBasename))
+      systemName = self.getSystemName()
+      outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
 
       mFF, wFF = self.getFFFiles()
-      outSystem = OpenMMSystem(filename=outSystemFile, ff=mFF, wff=wFF,
-                               nonbondedMethod=self.getEnumText('nonbondedMethod'),
-                               nonbondedCutoff=self.nonbondedCutoff.get())
+      nbMethod, nbCutOff = self.getNBParams()
+      nFrames = self.nSteps.get() // self.nTraj.get()
+      nTime = nFrames * self.stepSize.get()
+      outSystem = OpenMMSystem(filename=outPdbFile, repFile=self._getPath('md_log.txt'),
+                               ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime,
+                               nonbondedMethod=nbMethod, nonbondedCutoff=nbCutOff)
+      outSystem.setOriStructFile(self.getSystemFilename())
+      outSystem.setTrajectoryFile(outDcdFile)
 
       self._defineOutputs(outputSystem=outSystem)
-      self._defineSourceRelation(self.inputStructure, outSystem)
-
 
 
     def _warnings(self):
@@ -203,4 +219,4 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       return os.path.abspath(self.inputSystem.get().getFileName())
 
     def getSystemName(self):
-      return getBaseName(self.getSystemFilename())
+      return self.inputSystem.get().getSystemName()

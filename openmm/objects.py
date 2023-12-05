@@ -41,11 +41,23 @@ class OpenMMSystem(MDSystem):
   def __init__(self, filename=None, **kwargs):
     super().__init__(filename=filename, **kwargs)
     self._pdbFile = pwobj.String(filename)
+    self._repFile = pwobj.String(kwargs.get('repFile', None))
     self._nbMethod = pwobj.String(kwargs.get('nonbondedMethod', None))
     self._nbCutoff = pwobj.Float(kwargs.get('nonbondedCutoff', None))
 
+    self._nFrames = pwobj.Integer(kwargs.get('nFrames', None))
+    self._nTime = pwobj.Float(kwargs.get('nTime', None))
+
   def __str__(self):
     strStr = '{} ({}'.format(self.getClassName(), os.path.basename(self.getSystemFile()))
+    if self.hasTrajectory():
+      strStr += f', frames: {self._nFrames.get()}, time(ps): {self._nTime.get()}'
     strStr += ')'
     return strStr
+
+  def getReportFile(self):
+    return self._repFile.get()
+
+  def setReportFile(self, value):
+    self._repFile.set(value)
 

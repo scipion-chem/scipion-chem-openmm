@@ -53,7 +53,7 @@ class Plugin(pwchem.Plugin):
         installer = InstallHelper(OPENMM_DIC['name'], packageHome=cls.getVar(OPENMM_DIC['home']),
                                   packageVersion=OPENMM_DIC['version'])
 
-        condaPackages = ['openmm={}'.format(OPENMM_DIC['version']), 'pdbfixer']
+        condaPackages = [f'openmm={OPENMM_DIC["version"]}', 'pdbfixer']
 
         installer.getCondaEnvCommand(requirementsFile=False). \
             addCondaPackages(condaPackages, channel='conda-forge'). \

@@ -29,7 +29,7 @@ import os
 from pyworkflow.tests import BaseTest, setupTestProject, DataSet
 from pwem.protocols import ProtImportPdb
 
-from ..protocols import ProtOpenMMReceptorPrep, ProtOpenMMSystemPrep
+from ..protocols import ProtOpenMMReceptorPrep, ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation
 
 class TestOpenMMPrepareReceptor(BaseTest):
   @classmethod
@@ -66,12 +66,12 @@ class TestOpenMMPrepareReceptor(BaseTest):
 class TestOpenMMPrepareSystem(TestOpenMMPrepareReceptor):
     @classmethod
     def _runPrepareSystem(cls, protPrepare):
-        protPrepare = cls.newProtocol(
+        protPrepareS = cls.newProtocol(
             ProtOpenMMSystemPrep,
             inputStructure=protPrepare.outputStructure)
 
-        cls.launchProtocol(protPrepare)
-        return protPrepare
+        cls.launchProtocol(protPrepareS)
+        return protPrepareS
 
     def test(self):
         protPrepareRec = self._runPrepareReceptor()
@@ -79,3 +79,25 @@ class TestOpenMMPrepareSystem(TestOpenMMPrepareReceptor):
         protPrepare = self._runPrepareSystem(protPrepareRec)
         self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
         self.assertIsNotNone(getattr(protPrepare, 'outputSystem', None))
+
+
+class TestOpenMMSimulation(TestOpenMMPrepareSystem):
+  @classmethod
+  def _runSimulation(cls, protPrepareS):
+    protSim = cls.newProtocol(
+      ProtOpenMMSystemSimulation,
+      inputSystem=protPrepareS.outputSystem,
+      maxIter=50, nSteps=100)
+
+    cls.launchProtocol(protSim)
+    return protSim
+
+  def test(self):
+    protPrepareRec = self._runPrepareReceptor()
+    self._waitOutput(protPrepareRec, 'outputStructure', sleepTime=10)
+    protPrepare = self._runPrepareSystem(protPrepareRec)
+    self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
+
+    protSim = self._runSimulation(protPrepare)
+    self._waitOutput(protSim, 'outputSystem', sleepTime=10)
+    self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
