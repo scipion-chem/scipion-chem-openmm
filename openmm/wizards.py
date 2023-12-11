@@ -30,10 +30,11 @@ This wizard will show the structure of the pdb using a matplotlib viewer
 to select the radius of the sphere that contains the protein or a desired zone.
 """
 
-import os
+from pwchem.wizards import SelectMultiChainWizard
 
-from pwchem.wizards import GetRadiusProtein, SelectElementWizard, SelectLigandAtom, \
-  AddElementWizard, VariableWizard
-from pwchem.utils import getBaseName
-from pwchem.viewers import PyMolViewer
+from openmm.protocols import ProtOpenMMReceptorPrep
 
+SelectMultiChainWizard().addTarget(protocol=ProtOpenMMReceptorPrep,
+                                   targets=['chain_name'],
+                                   inputs=['inputAtomStruct'],
+                                   outputs=['chain_name'])
