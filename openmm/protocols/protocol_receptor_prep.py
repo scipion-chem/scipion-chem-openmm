@@ -79,8 +79,10 @@ class ProtOpenMMReceptorPrep(ProtChemPrepareReceptor):
         pdbFile = os.path.abspath(self.getPreparedFile())
         addResStr = ' --add-residues' if self.addRes else ''
         repNStdStr = ' --replace-nonstandard' if self.repNonStd else ''
-        Plugin.runOpenMM(self, 'pdbfixer', args='{} --add-atoms={}{}{} --output {}'.
-                               format(pdbFile, self.getEnumText('addAtoms').lower(), addResStr, repNStdStr, pdbFile))
+        addAtomsStr = self.getEnumText("addAtoms").lower()
+
+        args = f'{pdbFile} --add-atoms={addAtomsStr}{addResStr}{repNStdStr} --output {pdbFile}'
+        Plugin.runOpenMM(self, 'pdbfixer', args=args)
 
     def createOutput(self):
         fnOut = self.getPreparedFile()
