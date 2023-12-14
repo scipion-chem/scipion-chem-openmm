@@ -16,9 +16,7 @@ jobs:
     steps:
     # Showing disk space before freeing some up
     - name: Monitor disk usage before free
-      run: |
-        echo "######## BEFORE FREEING UP SPACE ########"
-        df -h
+      run: df -h
         
     # Freeing up space
     - name: Free Disk Space (Ubuntu only)
@@ -26,9 +24,7 @@ jobs:
 
     # Showing disk space after freeing some up
     - name: Monitor disk usage after free
-      run: |
-        echo -e "\n\n######## AFTER FREEING UP SPACE ########"
-        df -h
+      run: df -h
       
     # Installing scipion and miniconda dependencies
     - name: Install dependencies
