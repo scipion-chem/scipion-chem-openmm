@@ -13,18 +13,10 @@ jobs:
     runs-on: ubuntu-latest
 
     # Define the steps to be taken in the job
-    steps:
-    # Showing disk space before freeing some up
-    - name: Monitor disk usage before free
-      run: df -h
-        
+    steps:        
     # Freeing up space
     - name: Free Disk Space (Ubuntu only)
       uses: jlumbroso/free-disk-space@main
-
-    # Showing disk space after freeing some up
-    - name: Monitor disk usage after free
-      run: df -h
       
     # Installing scipion and miniconda dependencies
     - name: Install dependencies
