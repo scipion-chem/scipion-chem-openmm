@@ -35,10 +35,8 @@ from pyworkflow.protocol import params
 from pyworkflow.utils import Message
 from pwem.protocols import EMProtocol
 
-from pwchem.utils import getBaseName
-
 from .. import Plugin
-from ..constants import OPENMM_DIC
+from ..constants import ESPALOMA_DIC
 from ..objects import OpenMMSystem
 
 
@@ -69,11 +67,6 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         tGroup = form.addGroup('Trajectory')
         tGroup.addParam('nTraj', params.IntParam, default=100, label="Steps interval: ",
                         help='Save the state of the system each x steps for the trajectory')
-
-        cGroup = form.addGroup('Constraints')
-        cGroup.addParam('constraints', params.EnumParam, default=1, label="Constraints: ",
-                        choices=['None', 'HBonds', 'AllBonds', 'HAngles'],
-                        help='http://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
 
         mGroup = form.addGroup('Minimization')
         mGroup.addParam('addMinimization', params.BooleanParam, default=True, label="Add minimization: ",
@@ -125,60 +118,54 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
 
     def simulateStep(self):
-      inFile = self.getSystemFilename()
+      sysFile, structFile = self.getSystemFile(), self.getStructureFile()
 
       with open(self.getParamsFile(), 'w') as f:
-        f.write('inputFile :: {}\n'.format(inFile))
-        mFF, wFF = self.getFFFiles()
-        f.write('mFF :: {}\nwFF :: {}\n'.format(mFF, wFF))
-        f.write('nSteps :: {}\n'.format(self.nSteps.get()))
-
-        f.write('constraints :: {}\n'.format(self.getEnumText('constraints')))
-
-        nbMethod, nbCutOff = self.getNBParams()
-        f.write('nbMethod :: {}\nnbCutoff :: {}\n'.format(nbMethod, nbCutOff))
+        f.write(f'systemFile :: {sysFile}\n')
+        f.write(f'structureFile :: {structFile}\n')
+        f.write(f'nSteps :: {self.nSteps.get()}\n')
 
         integrator = self.getEnumText('integrator')
-        f.write('integrator :: {}\n'.format(integrator))
+        f.write(f'integrator :: {integrator}\n')
         if self.integrator.get() not in [0, 5]:
-          f.write('temperature :: {}\n'.format(self.temperature.get()))
+          f.write(f'temperature :: {self.temperature.get()}\n')
 
         if self.integrator.get() not in [5, 6]:
-          f.write('stepSize :: {}\n'.format(self.stepSize.get()))
+          f.write(f'stepSize :: {self.stepSize.get()}\n')
 
         if self.integrator.get() not in [0, 3, 5]:
-          f.write('fricCoef :: {}\n'.format(self.fricCoef.get()))
+          f.write(f'fricCoef :: {self.fricCoef.get()}\n')
 
-        f.write('addMinimization :: {}\n'.format(self.addMinimization.get()))
+        f.write(f'addMinimization :: {self.addMinimization.get()}\n')
         if self.addMinimization:
-          f.write('minimTol :: {}\n'.format(self.minimTol.get()))
-          f.write('maxIter :: {}\n'.format(self.maxIter.get()))
+          f.write(f'minimTol :: {self.minimTol.get()}\n')
+          f.write(f'maxIter :: {self.maxIter.get()}\n')
 
-        f.write('addBarostat :: {}\n'.format(self.addBarostat.get()))
+        f.write(f'addBarostat :: {self.addBarostat.get()}\n')
         if self.addBarostat:
-          f.write('pressure :: {}\n'.format(self.pressure.get()))
-          f.write('temperature :: {}\n'.format(self.temperature.get()))
+          f.write(f'pressure :: {self.pressure.get()}\n')
+          f.write(f'temperature :: {self.temperature.get()}\n')
 
         f.write(f'nTraj :: {self.nTraj.get()}\n')
         if getattr(self, params.USE_GPU).get():
           f.write(f'gpus :: {getattr(self, params.GPU_LIST)}\n')
 
-      Plugin.runScript(self, 'openmmSimulateSystem.py', args=self.getParamsFile(), env=OPENMM_DIC,
+      Plugin.runScript(self, 'openmmSimulateSystem.py', args=self.getParamsFile(), env=ESPALOMA_DIC,
                              cwd=self._getPath())
 
 
     def createOutputStep(self):
       systemName = self.getSystemName()
+      oriStructFile, systemFile = self.getStructureFile(), self.getSystemFile()
       outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
 
       mFF, wFF = self.getFFFiles()
-      nbMethod, nbCutOff = self.getNBParams()
       nFrames = self.nSteps.get() // self.nTraj.get()
       nTime = nFrames * self.stepSize.get()
-      outSystem = OpenMMSystem(filename=outPdbFile, repFile=self._getPath('md_log.txt'),
-                               ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime,
-                               nonbondedMethod=nbMethod, nonbondedCutoff=nbCutOff)
-      outSystem.setOriStructFile(self.getSystemFilename())
+      outSystem = OpenMMSystem(filename=outPdbFile, serieFile=systemFile,
+                               repFile=self._getPath('md_log.txt'),
+                               ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
+      outSystem.setOriStructFile(oriStructFile)
       outSystem.setTrajectoryFile(outDcdFile)
 
       self._defineOutputs(outputSystem=outSystem)
@@ -215,8 +202,11 @@ class ProtOpenMMSystemSimulation(EMProtocol):
     def getParamsFile(self):
       return os.path.abspath(self._getExtraPath('simulationParams.txt'))
 
-    def getSystemFilename(self):
+    def getStructureFile(self):
       return os.path.abspath(self.inputSystem.get().getFileName())
+
+    def getSystemFile(self):
+      return os.path.abspath(self.inputSystem.get().getSerieFile())
 
     def getSystemName(self):
       return self.inputSystem.get().getSystemName()

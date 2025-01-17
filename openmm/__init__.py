@@ -41,22 +41,25 @@ class Plugin(pwchem.Plugin):
     def _defineVariables(cls):
         """ Return and write a variable in the config file.
         """
-        cls._defineEmVar(OPENMM_DIC['home'], '{}-{}'.format(OPENMM_DIC['name'], OPENMM_DIC['version']))
-        cls._defineVar("OPENMM_ENV_ACTIVATION", cls.getEnvActivationCommand(OPENMM_DIC))
+        cls._defineEmVar(ESPALOMA_DIC['home'], cls.getEnvName(ESPALOMA_DIC))
+        cls._defineVar("ESPALOMA_ENV_ACTIVATION", cls.getEnvActivationCommand(ESPALOMA_DIC))
 
     @classmethod
     def defineBinaries(cls, env):
-        cls.addOPENMMPackage(env, default=bool(cls.getCondaActivationCmd()))
+        # cls.addOPENMMPackage(env, default=bool(cls.getCondaActivationCmd()))
+        cls.addEspaloma(env)
 
     @classmethod
-    def addOPENMMPackage(cls, env, default=True):
-        installer = InstallHelper(OPENMM_DIC['name'], packageHome=cls.getVar(OPENMM_DIC['home']),
-                                  packageVersion=OPENMM_DIC['version'])
+    def addEspaloma(cls, env, default=True):
+        """ This function installs Espaloma package. """
+        installer = InstallHelper(ESPALOMA_DIC['name'], packageHome=cls.getVar(ESPALOMA_DIC['home']),
+                                  packageVersion=ESPALOMA_DIC['version'])
 
-        condaPackages = [f'openmm={OPENMM_DIC["version"]}', 'pdbfixer']
-
-        installer.getCondaEnvCommand(requirementsFile=False). \
-            addCondaPackages(condaPackages, channel='conda-forge'). \
+        # Installing package
+        installer.addCommand(f'conda env create -f {cls.getPluginHome("espalomaEnv.yml")} -y ',
+                             'ESPALOMA_ENV_CREATED').\
+            addCommand(f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
+                        'ESPALOMA_MODEL_DOWNLOADED'). \
             addPackage(env, dependencies=['conda'], default=default)
 
     # ---------------------------------- Utils functions  -----------------------
@@ -68,13 +71,22 @@ class Plugin(pwchem.Plugin):
 
     @classmethod
     def runOpenMM(cls, protocol, program, args, cwd=None):
-        """ Run Ambertools command from a given protocol. """
-        fullProgram = ' %s && %s' % (cls.getEnvActivationCommand(OPENMM_DIC), program)
+        """ Run OpenMM command from a given protocol. """
+        fullProgram = ' %s && %s' % (cls.getEnvActivationCommand(ESPALOMA_DIC), program)
         protocol.runJob(fullProgram, args, env=cls.getEnviron(), cwd=cwd)
 
     @classmethod
     def runOpenMMScript(cls, protocol, program, args, cwd=None):
-        """ Run Ambertools command from a given protocol. """
-        fullProgram = ' %s && %s' % (cls.getEnvActivationCommand(OPENMM_DIC), program)
+        """ Run openMM command from a given protocol. """
+        fullProgram = ' %s && %s' % (cls.getEnvActivationCommand(ESPALOMA_DIC), program)
         protocol.runJob(fullProgram, args, env=cls.getEnviron(), cwd=cwd)
+
+    @classmethod
+    def getEspalomaModelUrl(cls):
+        v = ESPALOMA_DIC["version"]
+        return f'https://github.com/choderalab/espaloma/releases/download/{v}/espaloma-{v}.pt'
+
+    @classmethod
+    def getEspalomaModelFile(cls):
+        return cls.getPluginHome(f"models/espaloma-{ESPALOMA_DIC['version']}.pt")
 

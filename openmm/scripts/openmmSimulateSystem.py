@@ -26,35 +26,32 @@
 # **************************************************************************
 
 # General imports
-import sys, os
+import sys
 
 # Openmm imports
 from openmm.app import PDBFile, ForceField, Simulation, StateDataReporter,\
-  DCDReporter, NoCutoff, HBonds
+	DCDReporter, NoCutoff, HBonds
 from openmm import *
 from openmm.unit import *
 
 def parseParams(paramsFile):
-  paramsDic = {}
-  with open(paramsFile) as f:
-    for line in f:
-      key, value = line.strip().split('::')
-      paramsDic[key.strip()] = value.strip()
-  return paramsDic
+	paramsDic = {}
+	with open(paramsFile) as f:
+		for line in f:
+			key, value = line.strip().split('::')
+			paramsDic[key.strip()] = value.strip()
+	return paramsDic
 
 
 if __name__ == "__main__":
 	pDic = parseParams(sys.argv[1])
-	sysName = os.path.splitext(os.path.basename(pDic['inputFile']))[0]
+	sysFile, pdbFile = pDic['systemFile'], pDic['structureFile']
+	pdb = PDBFile(pdbFile)
+	with open(sysFile) as input:
+		system = XmlSerializer.deserialize(input.read())
+
+	sysName = os.path.splitext(os.path.basename(sysFile))[0]
 	nTraj = int(pDic['nTraj'])
-
-	pdb = PDBFile(pDic['inputFile'])
-	forcefield = ForceField(pDic['mFF'], pDic['wFF'])
-
-	sysKwargs = {"nonbondedMethod": eval(pDic['nbMethod'])}
-	sysKwargs.update({"nonbondedCutoff": float(pDic['nbCutoff']) * nanometer})
-	sysKwargs.update({"constraints": eval(pDic['constraints'])})
-	system = forcefield.createSystem(pdb.topology, **sysKwargs)
 
 	if eval(pDic['addBarostat']):
 		system.addForce(MonteCarloBarostat(float(pDic['pressure']) * bar, float(pDic['temperature']) * kelvin))
@@ -72,10 +69,12 @@ if __name__ == "__main__":
 
 	integrator = intClass(*intArgs)
 
-	properties = {}
+	kwargs = {}
 	if 'gpus' in pDic:
-		properties.update({'DeviceIndex': pDic['gpus'].strip()})
-	simulation = Simulation(pdb.topology, system, integrator, platformProperties=properties)
+		kwargs['platform'] = Platform.getPlatformByName('CUDA')
+		kwargs['platformProperties'] = {'DeviceIndex': pDic['gpus'].strip()}
+
+	simulation = Simulation(pdb.topology, system, integrator, **kwargs)
 	simulation.context.setPositions(pdb.positions)
 
 	if eval(pDic['addMinimization']):

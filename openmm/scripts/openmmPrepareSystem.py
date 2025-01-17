@@ -30,6 +30,20 @@ from openmm.app import *
 from openmm import *
 from openmm.unit import *
 
+from openff.toolkit.topology import Molecule
+
+from openmmforcefields.generators import EspalomaTemplateGenerator, GAFFTemplateGenerator, SMIRNOFFTemplateGenerator
+
+
+def getGenerator(ligFF):
+  if 'espaloma' in ligFF.lower():
+    gen = EspalomaTemplateGenerator
+  elif 'gaff' in ligFF.lower():
+    gen = GAFFTemplateGenerator
+  elif 'smirnoff' in ligFF.lower():
+    gen = SMIRNOFFTemplateGenerator
+  return gen
+
 def parseParams(paramsFile):
   paramsDic = {}
   with open(paramsFile) as f:
@@ -38,32 +52,67 @@ def parseParams(paramsFile):
       paramsDic[key.strip()] = value.strip()
   return paramsDic
 
+def addLigand(modeller, ligFile):
+  '''Update modeller object of receptor with the ligand topology and positions'''
+  molecule = Molecule.from_file(ligFile)
+  ligTop = molecule.to_topology().to_openmm()
+  positions = molecule.conformers[0]
+
+  ligPos = positions.m_as("nanometer") * nanometers
+
+  modeller.add(ligTop, ligPos)
+  return modeller
+
+def addMoleculesFF(forcefield, ligFile, ligFF):
+  '''Update forcefiled with Espaloma parameters for ligand'''
+  molecule = Molecule.from_file(ligFile)
+  generator = getGenerator(ligFF)
+  tempGenerator = generator(molecules=molecule, forcefield=ligFF, cache="molecules_ff.json")
+  forcefield.registerTemplateGenerator(tempGenerator.generator)
+  return forcefield
+
 
 if __name__ == "__main__":
     pDic = parseParams(sys.argv[1])
-    sysName = os.path.splitext(os.path.basename(pDic['inputFile']))[0]
+    sysName = os.path.splitext(os.path.basename(pDic['receptorFile']))[0]
 
-    pdb = PDBFile(pDic['inputFile'])
+    pdb = PDBFile(pDic['receptorFile'])
     forcefield = ForceField(pDic['mFF'], pDic['wFF'])
 
     modeller = Modeller(pdb.topology, pdb.positions)
+    ligFile = pDic['ligandFile'] if 'ligandFile' in pDic else None
+    if ligFile:
+      ligFF = pDic['ligandFF']
+      modeller = addLigand(modeller, ligFile)
+      forcefield = addMoleculesFF(forcefield, ligFile, ligFF)
+
     if eval(pDic['addH']):
       modeller.addHydrogens(forcefield, pH=float(pDic['hPH']))
 
-    # todo: infer model arg from wFF
     if 'boxSize' in pDic:
       bSize = list(map(float, pDic['boxSize'].split(',')))
-      kwargs = {"boxSize": Vec3(bSize[0], bSize[1], bSize[2])*nanometers}
+      kwargs = {"boxSize": Vec3(bSize[0], bSize[1], bSize[2]) * nanometers}
     else:
       kwargs = {"padding": float(pDic['padDist'])}
 
-    kwargs.update({"ionicStrength": float(pDic['saltConc'])*molar, "neutralize": eval(pDic['neutralize']),
+    kwargs.update({"ionicStrength": float(pDic['saltConc']) * molar, "neutralize": eval(pDic['neutralize']),
                    "positiveIon": pDic['cationType'], "negativeIon": pDic['anionType']})
 
     modeller.addSolvent(forcefield, model=pDic['wModel'], **kwargs)
 
+    # Save PDB for visualization
     PDBFile.writeFile(modeller.topology, modeller.positions,
-                      open('{}_system.pdb'.format(sysName), 'w'))
+                      open(f'{sysName}_system.pdb', 'w'))
+
+    sysKwargs = {"nonbondedMethod": eval(pDic['nonbondedMethod'])}
+    sysKwargs.update({"nonbondedCutoff": float(pDic['nonbondedCutoff']) * nanometer})
+    sysKwargs.update({"constraints": eval(pDic['constraints'])})
+    system = forcefield.createSystem(modeller.topology, **sysKwargs)
+
+    with open(f'{sysName}_system.xml', 'w') as output:
+      output.write(XmlSerializer.serialize(system))
+
+
 
 
 

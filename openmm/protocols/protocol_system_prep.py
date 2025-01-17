@@ -35,12 +35,17 @@ from pyworkflow.protocol import params
 from pyworkflow.utils import Message
 from pwem.protocols import EMProtocol
 
-from pwchem.utils import getBaseName
+from pwchem.utils import getBaseName, convertToSdf
 
 from .. import Plugin
-from ..constants import OPENMM_DIC
+from ..constants import ESPALOMA_DIC
 from ..objects import OpenMMSystem
 
+STRUCTURE, LIGAND = 0, 1
+GAFF_Vs = ['gaff-1.4', 'gaff-1.8', 'gaff-1.81', 'gaff-2.1', 'gaff-2.11']
+SMIRNOFF_Vs = ['openff-1.0.1', 'openff-1.1.1', 'openff-1.0.0-RC1', 'openff-1.2.0', 'openff-1.1.0', 'openff-1.0.0', 'openff-1.0.0-RC2', 'smirnoff99Frosst-1.0.2', 'smirnoff99Frosst-1.0.0', 'smirnoff99Frosst-1.1.0', 'smirnoff99Frosst-1.0.4', 'smirnoff99Frosst-1.0.8', 'smirnoff99Frosst-1.0.6', 'smirnoff99Frosst-1.0.3', 'smirnoff99Frosst-1.0.1', 'smirnoff99Frosst-1.0.5', 'smirnoff99Frosst-1.0.9', 'smirnoff99Frosst-1.0.7']
+SMIRNOFF_Vs.sort()
+ESPALOMA_Vs = ['0.3.2']
 
 class ProtOpenMMSystemPrep(EMProtocol):
     """
@@ -64,8 +69,18 @@ class ProtOpenMMSystemPrep(EMProtocol):
         """
 
         form.addSection(label=Message.LABEL_INPUT)
-        form.addParam('inputStructure', params.PointerParam, label="Input structure: ", allowsNull=False,
-                      important=True, pointerClass='AtomStruct', help='Atom structure to convert to OpenMM system')
+        form.addParam('inputFrom', params.EnumParam, default=STRUCTURE,
+                      label='Input from: ', choices=['AtomStruct', 'SetOfSmallMolecules'],
+                      help='Type of input you want to use')
+        form.addParam('inputStructure', params.PointerParam, pointerClass='SchrodingerAtomStruct, AtomStruct',
+                      label='Input structure to be prepared for MD:', allowsNull=False, condition='inputFrom==0',
+                      help='Atomic structure to be prepared for MD by solvation, ions addition etc')
+        form.addParam('inputSetOfMols', params.PointerParam, pointerClass='SetOfSmallMolecules',
+                      label='Input set of molecules:', allowsNull=False, condition='inputFrom==1',
+                      help='Input set of docked molecules. One of them will be prepared together with its target')
+        form.addParam('inputLigand', params.StringParam, condition='inputFrom==1',
+                      label='Ligand to prepare: ',
+                      help='Specific ligand to prepare in the system')
 
         ffGroup = form.addGroup('System force fields')
         ffGroup.addParam('ffType', params.EnumParam, default=0, choices=['Amber14', 'CHARMM36', 'Old'],
@@ -102,6 +117,25 @@ class ProtOpenMMSystemPrep(EMProtocol):
                          choices=['tip3p', 'tip3pfb', 'tip4pew', 'tip4pfb', 'tip5p', 'spce', 'swm4ndp', 'opc', 'opc3'],
                          condition='ffType==2', label="Water force field: ",
                          help='Select an water force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#water-models')
+
+        ffGroup.addParam('ffSmallType', params.EnumParam, default=0, choices=['GAFF', 'SMIRNOFF', 'ESPALOMA'],
+                         condition='inputFrom==1', label="Small molecules force field: ",
+                         help='Small molecules force field to use')
+        ffGroup.addParam('gaffVersion', params.EnumParam, default=4, choices=GAFF_Vs, expertLevel=params.LEVEL_ADVANCED,
+                         condition='inputFrom==1 and ffSmallType==0', label="GAFF force field: ",
+                         help='GAFF force field to use')
+        ffGroup.addParam('smirnoffVersion', params.EnumParam, default=6, choices=SMIRNOFF_Vs,
+                         expertLevel=params.LEVEL_ADVANCED,
+                         condition='inputFrom==1 and ffSmallType==1', label="SMIRNOFF force field: ",
+                         help='SMIRNOFF force field to use')
+        ffGroup.addParam('espalomaVersion', params.EnumParam, default=0, choices=ESPALOMA_Vs,
+                         expertLevel=params.LEVEL_ADVANCED,
+                         condition='inputFrom==1 and ffSmallType==2', label="ESPALOMA force field: ",
+                         help='ESPALOMA force field to use')
+
+        ffGroup.addParam('constraints', params.EnumParam, default=1, label="Forcefield constraints: ",
+                         choices=['None', 'HBonds', 'AllBonds', 'HAngles'],
+                         help='http://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
 
         ffGroup = form.addGroup('Non bonded interactions')
         ffGroup.addParam('nonbondedMethod', params.EnumParam, default=0,
@@ -156,45 +190,54 @@ class ProtOpenMMSystemPrep(EMProtocol):
 
 
     def solvateStep(self):
-      inFile = self.getSystemFilename()
+      recFile = self.getReceptorFilename()
+      molFile = self.getSpecifiedMolFile() if self.inputFrom.get() == LIGAND else None
 
       with open(self.getParamsFile(), 'w') as f:
-        f.write('inputFile :: {}\n'.format(inFile))
+        f.write(f'receptorFile :: {recFile}\n')
+        if molFile:
+          f.write(f'ligandFile :: {molFile}\n')
+          f.write(f'ligandFF :: {self.getLigandFFVersion()}\n')
+
         mFF, wFF = self.getFFFiles()
-        f.write('mFF :: {}\nwFF :: {}\n'.format(mFF, wFF))
+        f.write(f'mFF :: {mFF}\nwFF :: {wFF}\n')
+        f.write(f'nonbondedMethod :: {self.getEnumText("nonbondedMethod")}\n')
+        f.write(f'nonbondedCutoff :: {self.nonbondedCutoff.get()}\n')
+        f.write(f'constraints :: {self.getEnumText("constraints")}\n')
 
         wModel = self.getWaterModel(wFF)
-        f.write('wModel :: {}\n'.format(wModel))
+        f.write(f'wModel :: {wModel}\n')
 
-        f.write('addH :: {}\n'.format(self.addH.get()))
+        f.write(f'addH :: {self.addH.get()}\n')
         if self.addH.get():
-          f.write('hPH :: {}\n'.format(self.hPH.get()))
+          f.write(f'hPH :: {self.hPH.get()}\n')
 
         if self.sizeType.get() == 0:
-          f.write('boxSize :: {}, {}, {}\n'.format(self.distA.get(), self.distB.get(), self.distC.get()))
+          f.write(f'boxSize :: {self.distA.get()}, {self.distB.get()}, {self.distC.get()}\n')
         else:
-          f.write('padDist :: {}\n'.format(self.padDist.get()))
+          f.write(f'padDist :: {self.padDist.get()}\n')
 
-        f.write('saltConc :: {}\n'.format(self.saltConc.get()))
-        f.write('neutralize :: {}\n'.format(self.neutralize.get()))
-        f.write('cationType :: {}\n'.format(self.getEnumText('cationType')))
-        f.write('anionType :: {}\n'.format(self.getEnumText('anionType')))
+        f.write(f'saltConc :: {self.saltConc.get()}\n')
+        f.write(f'neutralize :: {self.neutralize.get()}\n')
+        f.write(f'cationType :: {self.getEnumText("cationType")}\n')
+        f.write(f'anionType :: {self.getEnumText("anionType")}\n')
 
-      Plugin.runScript(self, 'openmmPrepareSystem.py', args=self.getParamsFile(), env=OPENMM_DIC,
+      Plugin.runScript(self, 'openmmPrepareSystem.py', args=self.getParamsFile(), env=ESPALOMA_DIC,
                              cwd=self._getPath())
 
 
     def createOutputStep(self):
       systemBasename = self.getSystemName()
-      outSystemFile = self._getPath('{}_system.pdb'.format(systemBasename))
+      outStructFile, outSystemFile = self._getPath(f'{systemBasename}_system.pdb'), \
+                                     self._getPath(f'{systemBasename}_system.xml')
 
+      ligName = self.inputLigand.get() if self.inputFrom.get() == LIGAND else None
       mFF, wFF = self.getFFFiles()
-      outSystem = OpenMMSystem(filename=outSystemFile, ff=mFF, wff=wFF,
-                               nonbondedMethod=self.getEnumText('nonbondedMethod'),
-                               nonbondedCutoff=self.nonbondedCutoff.get())
+      outSystem = OpenMMSystem(filename=outStructFile, oriStructFile=outStructFile, serieFile=outSystemFile,
+                               ff=mFF, wff=wFF, ligName=ligName)
 
       self._defineOutputs(outputSystem=outSystem)
-      self._defineSourceRelation(self.inputStructure, outSystem)
+      # self._defineSourceRelation(self.inputStructure, outSystem)
 
 
     def getWaterModel(self, wFF):
@@ -228,11 +271,37 @@ class ProtOpenMMSystemPrep(EMProtocol):
 
       return mFF, wFF
 
+    def getLigandFFVersion(self):
+      ffOption = self.ffSmallType.get()
+      if ffOption == 0:
+        return self.getEnumText('gaffVersion')
+      elif ffOption == 1:
+        return self.getEnumText('smirnoffVersion')
+      elif ffOption == 2:
+        return self.getEnumText('espalomaVersion')
+
     def getParamsFile(self):
       return os.path.abspath(self._getExtraPath('solvationParams.txt'))
 
-    def getSystemFilename(self):
-      return os.path.abspath(self.inputStructure.get().getFileName())
+    def getReceptorFilename(self):
+      if self.inputFrom.get() == STRUCTURE:
+          proteinFile = self.inputStructure.get().getFileName()
+      elif self.inputFrom.get() == LIGAND:
+          proteinFile = self.inputSetOfMols.get().getProteinFile()
+      return os.path.abspath(proteinFile)
 
     def getSystemName(self):
-      return getBaseName(self.getSystemFilename())
+      return getBaseName(self.getReceptorFilename())
+
+    def getSpecifiedMolFile(self):
+        myMol = None
+        for mol in self.inputSetOfMols.get():
+          if mol.__str__() == self.inputLigand.get():
+            myMol = mol.clone()
+            break
+        if myMol == None:
+            print('The input ligand is not found')
+            return None
+        else:
+            molFile = myMol.getPoseFile()
+            return convertToSdf(self, molFile)

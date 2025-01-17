@@ -26,3 +26,4 @@
 
 
 OPENMM_DIC = {'name': 'openmm',    'version': '7.6', 'home': 'OPENMM_HOME'}
+ESPALOMA_DIC = {'name': 'espaloma', 'version': '0.3.2', 'home': 'ESPALOMA_HOME'}

@@ -33,17 +33,14 @@ from pwchem.objects import MDSystem
 
 class OpenMMSystem(MDSystem):
   """A system atom structure (prepared for MD) in the file format of OpenMM
-  _pdbFile: structure file .pdb
   _trjFile: trajectory file (.dcd)
   _ff: main force field
   _wff: water force field model"""
 
   def __init__(self, filename=None, **kwargs):
     super().__init__(filename=filename, **kwargs)
-    self._pdbFile = pwobj.String(filename)
+    self._serieFile = pwobj.String(kwargs.get('serieFile', None))
     self._repFile = pwobj.String(kwargs.get('repFile', None))
-    self._nbMethod = pwobj.String(kwargs.get('nonbondedMethod', None))
-    self._nbCutoff = pwobj.Float(kwargs.get('nonbondedCutoff', None))
 
     self._nFrames = pwobj.Integer(kwargs.get('nFrames', None))
     self._nTime = pwobj.Float(kwargs.get('nTime', None))
@@ -60,4 +57,13 @@ class OpenMMSystem(MDSystem):
 
   def setReportFile(self, value):
     self._repFile.set(value)
+
+  def getSerieFile(self):
+    return self._serieFile.get()
+
+  def setSerieFile(self, value):
+    self._serieFile.set(value)
+
+  def getLigandID(self):
+    return 'UNK'
 
