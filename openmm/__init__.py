@@ -41,8 +41,8 @@ class Plugin(pwchem.Plugin):
     def _defineVariables(cls):
         """ Return and write a variable in the config file.
         """
-        cls._defineEmVar(ESPALOMA_DIC['home'], cls.getEnvName(ESPALOMA_DIC))
-        cls._defineVar("ESPALOMA_ENV_ACTIVATION", cls.getEnvActivationCommand(ESPALOMA_DIC))
+        cls._defineEmVar(OPENMM_DIC['home'], cls.getEnvName(OPENMM_DIC))
+        cls._defineVar("OPENMM_ENV_ACTIVATION", cls.getEnvActivationCommand(OPENMM_DIC))
 
     @classmethod
     def defineBinaries(cls, env):
@@ -52,12 +52,12 @@ class Plugin(pwchem.Plugin):
     @classmethod
     def addEspaloma(cls, env, default=True):
         """ This function installs Espaloma package. """
-        installer = InstallHelper(ESPALOMA_DIC['name'], packageHome=cls.getVar(ESPALOMA_DIC['home']),
-                                  packageVersion=ESPALOMA_DIC['version'])
+        installer = InstallHelper(OPENMM_DIC['name'], packageHome=cls.getVar(OPENMM_DIC['home']),
+                                  packageVersion=OPENMM_DIC['version'])
 
         # Installing package
         installer.addCommand(f'conda env create -f {cls.getPluginHome("espalomaEnv.yml")} -y ',
-                             'ESPALOMA_ENV_CREATED').\
+                             'OPENMM_ENV_CREATED').\
             addCommand(f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
                         'ESPALOMA_MODEL_DOWNLOADED'). \
             addPackage(env, dependencies=['conda'], default=default)
@@ -72,13 +72,13 @@ class Plugin(pwchem.Plugin):
     @classmethod
     def runOpenMM(cls, protocol, program, args, cwd=None):
         """ Run OpenMM command from a given protocol. """
-        fullProgram = ' %s && %s' % (cls.getEnvActivationCommand(ESPALOMA_DIC), program)
+        fullProgram = ' %s && %s' % (cls.getEnvActivationCommand(OPENMM_DIC), program)
         protocol.runJob(fullProgram, args, env=cls.getEnviron(), cwd=cwd)
 
     @classmethod
     def runOpenMMScript(cls, protocol, program, args, cwd=None):
         """ Run openMM command from a given protocol. """
-        fullProgram = ' %s && %s' % (cls.getEnvActivationCommand(ESPALOMA_DIC), program)
+        fullProgram = ' %s && %s' % (cls.getEnvActivationCommand(OPENMM_DIC), program)
         protocol.runJob(fullProgram, args, env=cls.getEnviron(), cwd=cwd)
 
     @classmethod

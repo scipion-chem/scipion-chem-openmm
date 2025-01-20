@@ -40,7 +40,7 @@ def getGenerator(ligFF):
     gen = EspalomaTemplateGenerator
   elif 'gaff' in ligFF.lower():
     gen = GAFFTemplateGenerator
-  elif 'smirnoff' in ligFF.lower():
+  elif 'smirnoff' in ligFF.lower() or 'openff' in ligFF.lower():
     gen = SMIRNOFFTemplateGenerator
   return gen
 

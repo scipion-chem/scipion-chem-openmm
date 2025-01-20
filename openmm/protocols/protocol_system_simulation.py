@@ -36,7 +36,7 @@ from pyworkflow.utils import Message
 from pwem.protocols import EMProtocol
 
 from .. import Plugin
-from ..constants import ESPALOMA_DIC
+from ..constants import OPENMM_DIC
 from ..objects import OpenMMSystem
 
 
@@ -150,7 +150,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         if getattr(self, params.USE_GPU).get():
           f.write(f'gpus :: {getattr(self, params.GPU_LIST)}\n')
 
-      Plugin.runScript(self, 'openmmSimulateSystem.py', args=self.getParamsFile(), env=ESPALOMA_DIC,
+      Plugin.runScript(self, 'openmmSimulateSystem.py', args=self.getParamsFile(), env=OPENMM_DIC,
                              cwd=self._getPath())
 
 
