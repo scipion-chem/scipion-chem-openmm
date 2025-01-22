@@ -30,9 +30,10 @@ This wizard will show the structure of the pdb using a matplotlib viewer
 to select the radius of the sphere that contains the protein or a desired zone.
 """
 
-from pwchem.wizards import SelectMultiChainWizard, SelectElementWizard
+from pwchem.wizards import SelectMultiChainWizard, SelectElementWizard, \
+  SelectChainWizardQT, SelectResidueWizardQT, SelectAtomWizardQT
 
-from openmm.protocols import ProtOpenMMReceptorPrep, ProtOpenMMSystemPrep
+from openmm.protocols import ProtOpenMMReceptorPrep, ProtOpenMMSystemPrep, ProtOpenDuckSimulation
 
 SelectMultiChainWizard().addTarget(protocol=ProtOpenMMReceptorPrep,
                                    targets=['chain_name'],
@@ -43,3 +44,23 @@ SelectElementWizard().addTarget(protocol=ProtOpenMMSystemPrep,
                                targets=['inputLigand'],
                                inputs=['inputSetOfMols'],
                                outputs=['inputLigand'])
+
+SelectElementWizard().addTarget(protocol=ProtOpenDuckSimulation,
+                               targets=['inputLigand'],
+                               inputs=['inputSetOfMols'],
+                               outputs=['inputLigand'])
+
+SelectChainWizardQT().addTarget(protocol=ProtOpenDuckSimulation,
+                              targets=['intChain'],
+                              inputs=['inputSetOfMols'],
+                              outputs=['intChain'])
+
+SelectResidueWizardQT().addTarget(protocol=ProtOpenDuckSimulation,
+                                targets=['intResidue'],
+                                inputs=['inputSetOfMols', 'intChain'],
+                                outputs=['intResidue'])
+
+SelectAtomWizardQT().addTarget(protocol=ProtOpenDuckSimulation,
+                               targets=['intAtom'],
+                               inputs=['inputSetOfMols', 'intChain', 'intResidue'],
+                               outputs=['intAtom'])

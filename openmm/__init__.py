@@ -44,13 +44,15 @@ class Plugin(pwchem.Plugin):
         cls._defineEmVar(OPENMM_DIC['home'], cls.getEnvName(OPENMM_DIC))
         cls._defineVar("OPENMM_ENV_ACTIVATION", cls.getEnvActivationCommand(OPENMM_DIC))
 
-    @classmethod
-    def defineBinaries(cls, env):
-        # cls.addOPENMMPackage(env, default=bool(cls.getCondaActivationCmd()))
-        cls.addEspaloma(env)
+        cls._defineEmVar(ODUCK_DIC['home'], cls.getEnvName(ODUCK_DIC))
 
     @classmethod
-    def addEspaloma(cls, env, default=True):
+    def defineBinaries(cls, env):
+        cls.addOPENMMPackage(env, default=bool(cls.getCondaActivationCmd()))
+        cls.addODUCKPackage(env, default=bool(cls.getCondaActivationCmd()))
+
+    @classmethod
+    def addOPENMMPackage(cls, env, default=True):
         """ This function installs Espaloma package. """
         installer = InstallHelper(OPENMM_DIC['name'], packageHome=cls.getVar(OPENMM_DIC['home']),
                                   packageVersion=OPENMM_DIC['version'])
@@ -60,6 +62,18 @@ class Plugin(pwchem.Plugin):
                              'OPENMM_ENV_CREATED').\
             addCommand(f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
                         'ESPALOMA_MODEL_DOWNLOADED'). \
+            addPackage(env, dependencies=['conda'], default=default)
+
+    @classmethod
+    def addODUCKPackage(cls, env, default=True):
+        """ This function installs Espaloma package. """
+        installer = InstallHelper(ODUCK_DIC['name'], packageHome=cls.getVar(ODUCK_DIC['home']),
+                                  packageVersion=ODUCK_DIC['version'])
+
+        # Installing package
+        installer.getCloneCommand(cls.getOpenDuckGithub(), targeName='ODUCK_CLONED'). \
+            addCommand(f'{cls.getEnvActivationCommand(OPENMM_DIC)} && cd openduck && python setup.py install',
+                       'ODUCK_INSTALLED'). \
             addPackage(env, dependencies=['conda'], default=default)
 
     # ---------------------------------- Utils functions  -----------------------
@@ -72,13 +86,7 @@ class Plugin(pwchem.Plugin):
     @classmethod
     def runOpenMM(cls, protocol, program, args, cwd=None):
         """ Run OpenMM command from a given protocol. """
-        fullProgram = ' %s && %s' % (cls.getEnvActivationCommand(OPENMM_DIC), program)
-        protocol.runJob(fullProgram, args, env=cls.getEnviron(), cwd=cwd)
-
-    @classmethod
-    def runOpenMMScript(cls, protocol, program, args, cwd=None):
-        """ Run openMM command from a given protocol. """
-        fullProgram = ' %s && %s' % (cls.getEnvActivationCommand(OPENMM_DIC), program)
+        fullProgram = f' {cls.getEnvActivationCommand(OPENMM_DIC)} && {program}'
         protocol.runJob(fullProgram, args, env=cls.getEnviron(), cwd=cwd)
 
     @classmethod
@@ -89,4 +97,8 @@ class Plugin(pwchem.Plugin):
     @classmethod
     def getEspalomaModelFile(cls):
         return cls.getPluginHome(f"models/espaloma-{ESPALOMA_DIC['version']}.pt")
+
+    @classmethod
+    def getOpenDuckGithub(cls):
+        return "https://github.com/CBDD/openduck.git"
 

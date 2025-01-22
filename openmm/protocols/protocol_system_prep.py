@@ -69,18 +69,19 @@ class ProtOpenMMSystemPrep(EMProtocol):
         """
 
         form.addSection(label=Message.LABEL_INPUT)
-        form.addParam('inputFrom', params.EnumParam, default=STRUCTURE,
-                      label='Input from: ', choices=['AtomStruct', 'SetOfSmallMolecules'],
-                      help='Type of input you want to use')
-        form.addParam('inputStructure', params.PointerParam, pointerClass='SchrodingerAtomStruct, AtomStruct',
-                      label='Input structure to be prepared for MD:', allowsNull=False, condition='inputFrom==0',
-                      help='Atomic structure to be prepared for MD by solvation, ions addition etc')
-        form.addParam('inputSetOfMols', params.PointerParam, pointerClass='SetOfSmallMolecules',
-                      label='Input set of molecules:', allowsNull=False, condition='inputFrom==1',
-                      help='Input set of docked molecules. One of them will be prepared together with its target')
-        form.addParam('inputLigand', params.StringParam, condition='inputFrom==1',
-                      label='Ligand to prepare: ',
-                      help='Specific ligand to prepare in the system')
+        iGroup = form.addGroup('Input')
+        iGroup.addParam('inputFrom', params.EnumParam, default=STRUCTURE,
+                        label='Input from: ', choices=['AtomStruct', 'SetOfSmallMolecules'],
+                        help='Type of input you want to use')
+        iGroup.addParam('inputStructure', params.PointerParam, pointerClass='SchrodingerAtomStruct, AtomStruct',
+                        label='Input structure to be prepared for MD:', allowsNull=False, condition='inputFrom==0',
+                        help='Atomic structure to be prepared for MD by solvation, ions addition etc')
+        iGroup.addParam('inputSetOfMols', params.PointerParam, pointerClass='SetOfSmallMolecules',
+                        label='Input set of molecules:', allowsNull=False, condition='inputFrom==1',
+                        help='Input set of docked molecules. One of them will be prepared together with its target')
+        iGroup.addParam('inputLigand', params.StringParam, condition='inputFrom==1',
+                        label='Ligand to prepare: ',
+                        help='Specific ligand to prepare in the system')
 
         ffGroup = form.addGroup('System force fields')
         ffGroup.addParam('ffType', params.EnumParam, default=0, choices=['Amber14', 'CHARMM36', 'Old'],
@@ -305,3 +306,9 @@ class ProtOpenMMSystemPrep(EMProtocol):
         else:
             molFile = myMol.getPoseFile()
             return convertToSdf(self, molFile)
+
+    def _warnings(self):
+      ws = []
+      if self.constraints.get() == 0:
+        ws.append('Running the simulation without restraints might lead to errors in the simulation.\n')
+      return ws

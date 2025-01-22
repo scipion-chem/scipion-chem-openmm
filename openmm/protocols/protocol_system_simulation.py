@@ -173,9 +173,6 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
     def _warnings(self):
       ws = []
-      if self.constraints.get() == 0:
-        ws.append('Running the simulation without restraints might lead to errors in the simulation.\n')
-
       if not self.addMinimization.get():
         ws.append('Running the simulation without a prior minimization might lead to errors in the simulation.\n')
       return ws
