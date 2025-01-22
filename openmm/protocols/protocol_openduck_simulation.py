@@ -43,6 +43,7 @@ from .. import Plugin
 from ..objects import OpenMMSystem
 
 program = 'openduck openmm-full-protocol'
+report = 'openduck report'
 scriptName = 'rdkit_addHydrogens.py'
 
 class ProtOpenDuckSimulation(EMProtocol):
@@ -148,10 +149,19 @@ class ProtOpenDuckSimulation(EMProtocol):
       self.addLigandHydrogens()
 
     def simulateStep(self):
+      os.mkdir(self.getOutputDir())
       paramsFile = self.writeSimParamsFile()
-      Plugin.runOpenMM(self, program, args=f'-y {paramsFile}', cwd=self._getPath())
+      Plugin.runOpenMM(self, program, args=f'-y {paramsFile}', cwd=self.getOutputDir())
 
     def createOutputStep(self):
+      args = f'-p {self.getOutputDir()} -f openmm --plot -of csv -o openDuckW_min.csv'
+      Plugin.runOpenMM(self, report, args=args, cwd=self.getOutputDir())
+
+      args = f'-p {self.getOutputDir()} -f openmm --plot -d jarzynski -of csv -o openDuckW_jarzynski.csv'
+      Plugin.runOpenMM(self, report, args=args, cwd=self.getOutputDir())
+
+
+      # todo: set one of the output trajectories as output and report W in summary
       systemName = self.getSystemName()
       oriStructFile, systemFile = self.getStructureFile(), self.getSystemFile()
       outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
@@ -173,39 +183,8 @@ class ProtOpenDuckSimulation(EMProtocol):
       return ws
 
 
-    def getWaterModel(self, wFF):
-      model = 'tip3p'
-      if 'spce' in wFF:
-        model = 'spce'
-      elif 'tip4p' in wFF:
-        model = 'tip4pew'
-      elif 'tip5p' in wFF:
-        model = 'tip5p'
-      return model
 
-    def getFFFiles(self):
-      system = self.inputSystem.get()
-      return system.getForceField(), system.getWaterForceField()
-
-    def getNBParams(self):
-      system = self.inputSystem.get()
-      return system._nbMethod.get(), system._nbCutoff.get()
-
-    def getStructureFile(self):
-      return os.path.abspath(self.inputSystem.get().getFileName())
-
-    def getSystemFile(self):
-      return os.path.abspath(self.inputSystem.get().getSerieFile())
-
-    def getSystemName(self):
-      return self.inputSystem.get().getSystemName()
-
-
-
-
-
-
-
+    ##################### UTILS FUNCTIONS ##################################
 
     def getInputReceptorFile(self):
       return os.path.abspath(self.inputSetOfMols.get().getProteinFile())
@@ -295,4 +274,7 @@ class ProtOpenDuckSimulation(EMProtocol):
 
     def getSimParamsFile(self):
       return os.path.abspath(self._getExtraPath('simulationParams.yaml'))
+
+    def getOutputDir(self):
+      return os.path.abspath(self._getExtraPath('simulation'))
 
