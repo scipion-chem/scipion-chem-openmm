@@ -60,7 +60,7 @@ class Plugin(pwchem.Plugin):
         # Installing package
         installer.addCommand(f'conda env create -f {cls.getPluginHome("espalomaEnv.yml")} -y ',
                              'OPENMM_ENV_CREATED').\
-            addCommand(f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
+            addCommand(f'{cls.createModelsDir()} && wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
                         'ESPALOMA_MODEL_DOWNLOADED'). \
             addPackage(env, dependencies=['conda'], default=default)
 
@@ -97,6 +97,10 @@ class Plugin(pwchem.Plugin):
     @classmethod
     def getEspalomaModelFile(cls):
         return cls.getPluginHome(f"models/espaloma-{ESPALOMA_DIC['version']}.pt")
+
+    @classmethod
+    def createModelsDir(cls):
+        os.makedirs(cls.getPluginHome(f"models"))
 
     @classmethod
     def getOpenDuckGithub(cls):
