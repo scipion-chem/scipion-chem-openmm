@@ -100,7 +100,9 @@ class Plugin(pwchem.Plugin):
 
     @classmethod
     def createModelsDir(cls):
-        os.makedirs(cls.getPluginHome(f"models"))
+        modDir = cls.getPluginHome(f"models")
+        if not os.path.exists(modDir):
+            os.makedirs(modDir)
 
     @classmethod
     def getOpenDuckGithub(cls):
