@@ -170,8 +170,6 @@ class ProtOpenDuckSimulation(EMProtocol):
 
     def _warnings(self):
       ws = []
-      if not self.addMinimization.get():
-        ws.append('Running the simulation without a prior minimization might lead to errors in the simulation.\n')
       return ws
 
 
