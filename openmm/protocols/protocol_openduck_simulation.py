@@ -155,10 +155,10 @@ class ProtOpenDuckSimulation(EMProtocol):
 
     def createOutputStep(self):
       args = f'-p {self.getOutputDir()} -f openmm --plot -of csv -o openDuckW_min.csv'
-      Plugin.runOpenMM(self, report, args=args, cwd=self.getOutputDir())
+      Plugin.runOpenMM(self, report, args=args, cwd=self._getPath())
 
       args = f'-p {self.getOutputDir()} -f openmm --plot -d jarzynski -of csv -o openDuckW_jarzynski.csv'
-      Plugin.runOpenMM(self, report, args=args, cwd=self.getOutputDir())
+      Plugin.runOpenMM(self, report, args=args, cwd=self._getPath())
 
 
       # todo: set one of the output trajectories as output and report W in summary
@@ -182,9 +182,24 @@ class ProtOpenDuckSimulation(EMProtocol):
       ws = []
       return ws
 
-
+    def _summary(self):
+      summ = []
+      if os.path.exists(self.getOutWorkFile(False)):
+        summ += [f'Min Wqb: {self.parseOutputCSV(False)}\n']
+      if os.path.exists(self.getOutWorkFile(True)):
+        summ += [f'Jarzynski Wqb: {self.parseOutputCSV(True)}\n']
+      return summ
 
     ##################### UTILS FUNCTIONS ##################################
+
+    def getOutWorkFile(self, jar=True):
+      jarStr = 'jarzynski' if jar else 'min'
+      return self._getPath(f'openDuckW_{jarStr}.csv')
+
+    def parseOutputCSV(self, jar=True):
+      with open(self.getOutWorkFile(jar)) as f:
+        score = float(f.readline().strip().split(',')[1])
+      return score
 
     def getInputReceptorFile(self):
       return os.path.abspath(self.inputSetOfMols.get().getProteinFile())
@@ -247,10 +262,10 @@ class ProtOpenDuckSimulation(EMProtocol):
           f.write(f'gpu_id : {getattr(self, params.GPU_LIST).get()}\n')
 
         f.write('\n# Chunking Arguments\n')
-        f.write(f'do_chunk :: {self.doChunk.get()}\n')
+        f.write(f'do_chunk : {self.doChunk.get()}\n')
         if self.doChunk.get():
-          f.write(f'cutoff :: {self.cutoff.get()}\n')
-          f.write(f'ignore_buffers :: {self.ignoreBuffers.get()}\n')
+          f.write(f'cutoff : {self.cutoff.get()}\n')
+          f.write(f'ignore_buffers : {self.ignoreBuffers.get()}\n')
 
         f.write('\n# Preparation Arguments\n')
         f.write(f'small_molecule_forcefield : {self.getEnumText("smallFF").lower()}\n')
