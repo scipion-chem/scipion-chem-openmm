@@ -29,7 +29,7 @@
 """
 This file will run a OpenDuck undocking simulation using OpenMM
 """
-import os, json
+import os, json, shutil
 
 from pyworkflow.protocol import params
 from pyworkflow.utils import Message
@@ -41,10 +41,12 @@ from pwchem.utils import RESIDUES1TO3, convertToSdf
 
 from .. import Plugin
 from ..objects import OpenMMSystem
+from ..constants import OPENMM_DIC
 
 program = 'openduck openmm-full-protocol'
 report = 'openduck report'
 scriptName = 'rdkit_addHydrogens.py'
+buildSystem = 'openmmBuildSystem.py'
 
 class ProtOpenDuckSimulation(EMProtocol):
     """
@@ -97,9 +99,6 @@ class ProtOpenDuckSimulation(EMProtocol):
                              'defined interaction in the MD simulation')
         cGroup.addParam('cutoff', params.FloatParam, default=9, label="Chunking cutoff (A): ", condition='doChunk',
                         help='Cutoff distance to define chunking (in Angstroms)')
-        cGroup.addParam('ignoreBuffers', params.BooleanParam, default=True, label='Ignore buffers: ',
-                        condition='doChunk',
-                        help='Do not remove buffers (solvent, ions, etc) in chunking')
 
         form.addSection(label='Parametrization')
         pGroup = form.addGroup('Parametrization')
@@ -160,20 +159,20 @@ class ProtOpenDuckSimulation(EMProtocol):
       args = f'-p {self.getOutputDir()} -f openmm --plot -d jarzynski -of csv -o openDuckW_jarzynski.csv'
       Plugin.runOpenMM(self, report, args=args, cwd=self._getPath())
 
+      outPDB, outDCD = self.copyOutputSimulations()
+      args = self.writeBuildParamsFile(os.path.abspath(outPDB))
+      pwchemPlugin.runScript(self, buildSystem, args, env=OPENMM_DIC, cwd=self._getPath())
+      Plugin.runOpenMM(self, buildSystem, args=args, cwd=self._getPath())
 
-      # todo: set one of the output trajectories as output and report W in summary
-      systemName = self.getSystemName()
-      oriStructFile, systemFile = self.getStructureFile(), self.getSystemFile()
-      outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
-
+      systemFile = outDCD.replace('.dcd', '_system.xml')
       mFF, wFF = self.getFFFiles()
+
       nFrames = self.nSteps.get() // self.nTraj.get()
       nTime = nFrames * self.stepSize.get()
-      outSystem = OpenMMSystem(filename=outPdbFile, serieFile=systemFile,
-                               repFile=self._getPath('md_log.txt'),
-                               ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
-      outSystem.setOriStructFile(oriStructFile)
-      outSystem.setTrajectoryFile(outDcdFile)
+      outSystem = OpenMMSystem(filename=outPDB, serieFile=systemFile,
+                               ff=mFF, wff=wFF)
+      outSystem.setOriStructFile(outPDB)
+      outSystem.setTrajectoryFile(outDCD)
 
       self._defineOutputs(outputSystem=outSystem)
 
@@ -185,9 +184,13 @@ class ProtOpenDuckSimulation(EMProtocol):
     def _summary(self):
       summ = []
       if os.path.exists(self.getOutWorkFile(False)):
-        summ += [f'Min Wqb: {self.parseOutputCSV(False)}\n']
+        wqb = self.parseOutputCSV(False)
+        if wqb is not None:
+          summ += [f'Min Wqb: {wqb}']
       if os.path.exists(self.getOutWorkFile(True)):
-        summ += [f'Jarzynski Wqb: {self.parseOutputCSV(True)}\n']
+        wqb = self.parseOutputCSV(True)
+        if wqb is not None:
+          summ += [f'Jarzynski Wqb: {wqb}\n']
       return summ
 
     ##################### UTILS FUNCTIONS ##################################
@@ -198,6 +201,7 @@ class ProtOpenDuckSimulation(EMProtocol):
 
     def parseOutputCSV(self, jar=True):
       with open(self.getOutWorkFile(jar)) as f:
+        f.readline()
         score = float(f.readline().strip().split(',')[1])
       return score
 
@@ -231,6 +235,7 @@ class ProtOpenDuckSimulation(EMProtocol):
       os.mkdir(self.getLigandFileDir())
       paramFile = self.writePrepParamsFile()
       pwchemPlugin.runScript(self, scriptName, paramFile, env=RDKIT_DIC, cwd=self._getPath())
+      os.rename(self.getPreparedLigandFile(), self.getPreparedLigandFile().replace('.sdf', '.mol'))
 
     def getLigandFileDir(self):
       return os.path.abspath(self._getExtraPath('ligand'))
@@ -265,7 +270,6 @@ class ProtOpenDuckSimulation(EMProtocol):
         f.write(f'do_chunk : {self.doChunk.get()}\n')
         if self.doChunk.get():
           f.write(f'cutoff : {self.cutoff.get()}\n')
-          f.write(f'ignore_buffers : {self.ignoreBuffers.get()}\n')
 
         f.write('\n# Preparation Arguments\n')
         f.write(f'small_molecule_forcefield : {self.getEnumText("smallFF").lower()}\n')
@@ -284,12 +288,50 @@ class ProtOpenDuckSimulation(EMProtocol):
 
       return self.getSimParamsFile()
 
+    def writeBuildParamsFile(self, outPDB):
+        paramsFile = self.getLigParamFile()
+        with open(paramsFile, 'w') as f:
+            # receptofile is actually the complex file
+            f.write(f"receptorFile :: {outPDB}\n")
+            f.write(f"ligandFile :: {os.path.abspath(self.getSpecifiedMolFile())}\n")
+
+            mFF, wFF = self.getFFFiles()
+            f.write(f'mFF :: {mFF}\n')
+            f.write(f'wFF :: {wFF}\n')
+            f.write(f'ligandFF :: {self.getEnumText("smallFF").lower()}\n')
+
+            # Parameters used by OpenDuck
+            f.write(f'nonbondedMethod :: PME\n')
+            f.write(f'nonbondedCutoff :: 0.9\n')
+            f.write(f'constraints :: HBonds\n')
+
+        return paramsFile
+
     def getLigParamFile(self):
       return os.path.abspath(self._getExtraPath('addHydrogens.txt'))
 
     def getSimParamsFile(self):
       return os.path.abspath(self._getExtraPath('simulationParams.yaml'))
 
-    def getOutputDir(self):
-      return os.path.abspath(self._getExtraPath('simulation'))
+    def getOutputDir(self, path=''):
+      return os.path.abspath(os.path.join(self._getExtraPath('simulation'), path))
+
+    def getFFFiles(self):
+      mFF = '{}.xml'.format(self.getEnumText('proteinFF'))
+      wFF = '{}.xml'.format(self.getEnumText('waterFF'))
+
+      return mFF, wFF
+
+    def copyOutputSimulations(self):
+      outPDB = self.getOutputDir('duck_runs/smd_0_300.pdb')
+      nOutPDB = self._getPath(f'{self.inputLigand.get()}_openduck.pdb')
+      shutil.copy(outPDB, nOutPDB)
+
+      outDCD = self.getOutputDir('duck_runs/smd_0_300.dcd')
+      nOutDCD = self._getPath(f'{self.inputLigand.get()}_openduck.dcd')
+      shutil.copy(outDCD, nOutDCD)
+
+      return nOutPDB, nOutDCD
+
+
 
