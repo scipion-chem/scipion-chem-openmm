@@ -33,7 +33,7 @@ from openmm.unit import *
 from openff.toolkit.topology import Molecule
 from openmmforcefields.generators import EspalomaTemplateGenerator, GAFFTemplateGenerator, SMIRNOFFTemplateGenerator
 
-from pwchem.utils.scriptUtils import parseParams
+from utils import parseParams
 
 def getGenerator(ligFF):
   if 'espaloma' in ligFF.lower():
