@@ -29,11 +29,10 @@ import sys
 from openmm.app import *
 from openmm import *
 from openmm.unit import *
-
 from openff.toolkit.topology import Molecule
-
 from openmmforcefields.generators import EspalomaTemplateGenerator, GAFFTemplateGenerator, SMIRNOFFTemplateGenerator
 
+from pwchem.utils.scriptUtils import parseParams
 
 def getGenerator(ligFF):
   if 'espaloma' in ligFF.lower():
@@ -43,14 +42,6 @@ def getGenerator(ligFF):
   elif 'smirnoff' in ligFF.lower() or 'openff' in ligFF.lower():
     gen = SMIRNOFFTemplateGenerator
   return gen
-
-def parseParams(paramsFile):
-  paramsDic = {}
-  with open(paramsFile) as f:
-    for line in f:
-      key, value = line.strip().split('::')
-      paramsDic[key.strip()] = value.strip()
-  return paramsDic
 
 def addMoleculesFF(forcefield, ligFile, ligFF):
   '''Update forcefiled with Espaloma parameters for ligand'''
@@ -62,7 +53,7 @@ def addMoleculesFF(forcefield, ligFile, ligFF):
 
 
 if __name__ == "__main__":
-    pDic = parseParams(sys.argv[1])
+    pDic = parseParams(sys.argv[1], sep='::')
     sysName = os.path.splitext(os.path.basename(pDic['receptorFile']))[0]
 
     pdb = PDBFile(pDic['receptorFile'])
