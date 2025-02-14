@@ -34,17 +34,10 @@ from openmm.app import PDBFile, ForceField, Simulation, StateDataReporter,\
 from openmm import *
 from openmm.unit import *
 
-def parseParams(paramsFile):
-	paramsDic = {}
-	with open(paramsFile) as f:
-		for line in f:
-			key, value = line.strip().split('::')
-			paramsDic[key.strip()] = value.strip()
-	return paramsDic
-
+from pwchem.utils.scriptUtils import parseParams
 
 if __name__ == "__main__":
-	pDic = parseParams(sys.argv[1])
+	pDic = parseParams(sys.argv[1], sep='::')
 	sysFile, pdbFile = pDic['systemFile'], pDic['structureFile']
 	pdb = PDBFile(pdbFile)
 	with open(sysFile) as input:
