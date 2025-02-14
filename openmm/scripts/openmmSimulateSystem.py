@@ -34,7 +34,7 @@ from openmm.app import PDBFile, ForceField, Simulation, StateDataReporter,\
 from openmm import *
 from openmm.unit import *
 
-from pwchem.utils.scriptUtils import parseParams
+from utils import parseParams
 
 if __name__ == "__main__":
 	pDic = parseParams(sys.argv[1], sep='::')
