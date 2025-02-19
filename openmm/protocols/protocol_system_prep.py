@@ -35,11 +35,15 @@ from pyworkflow.protocol import params
 from pyworkflow.utils import Message
 from pwem.protocols import EMProtocol
 
+from pwchem import Plugin as pwchemPlugin
+from pwchem.constants import RDKIT_DIC
 from pwchem.utils import getBaseName, convertToSdf
 
 from .. import Plugin
 from ..constants import OPENMM_DIC
 from ..objects import OpenMMSystem
+
+scriptLigPrepName = 'rdkit_addHydrogens.py'
 
 STRUCTURE, LIGAND = 0, 1
 GAFF_Vs = ['gaff-1.4', 'gaff-1.8', 'gaff-1.81', 'gaff-2.1', 'gaff-2.11']
@@ -240,6 +244,24 @@ class ProtOpenMMSystemPrep(EMProtocol):
       self._defineOutputs(outputSystem=outSystem)
       # self._defineSourceRelation(self.inputStructure, outSystem)
 
+    def getLigandFileDir(self):
+      lDir = os.path.abspath(self._getExtraPath('ligand'))
+      if not os.path.exists(lDir):
+        os.mkdir(lDir)
+      return lDir
+
+    def getLigParamFile(self):
+      return os.path.abspath(self._getExtraPath('addHydrogens.txt'))
+
+    def writePrepParamsFile(self, molFile):
+        paramsFile = self.getLigParamFile()
+        with open(paramsFile, 'w') as f:
+            f.write(f"ligandFiles: {molFile}\n")
+
+            f.write(f'outputDir: {self.getLigandFileDir()}\n')
+            f.write(f'doHydrogens: True\n')
+            f.write(f'doGasteiger: False\n')
+        return paramsFile
 
     def getWaterModel(self, wFF):
       model = 'tip3p'
@@ -305,7 +327,10 @@ class ProtOpenMMSystemPrep(EMProtocol):
             return None
         else:
             molFile = myMol.getPoseFile()
-            return convertToSdf(self, molFile)
+            sdfFile = convertToSdf(self, molFile)
+            paramFile = self.writePrepParamsFile(sdfFile)
+            pwchemPlugin.runScript(self, scriptLigPrepName, paramFile, env=RDKIT_DIC, cwd=self._getPath())
+            return os.path.join(self.getLigandFileDir(), os.listdir(self.getLigandFileDir())[0])
 
     def _warnings(self):
       ws = []
