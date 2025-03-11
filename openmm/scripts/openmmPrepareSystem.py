@@ -48,6 +48,8 @@ def addLigand(modeller, ligFile):
   '''Update modeller object of receptor with the ligand topology and positions'''
   molecule = Molecule.from_file(ligFile)
   ligTop = molecule.to_topology().to_openmm()
+  for residue in ligTop.residues():
+    residue.name = "LIG"
   positions = molecule.conformers[0]
 
   ligPos = positions.m_as("nanometer") * nanometers
