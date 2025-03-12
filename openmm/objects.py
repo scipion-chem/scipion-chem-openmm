@@ -65,5 +65,5 @@ class OpenMMSystem(MDSystem):
     self._serieFile.set(value)
 
   def getLigandID(self):
-    return 'UNK'
+    return 'LIG'
 
