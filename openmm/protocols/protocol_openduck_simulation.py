@@ -51,6 +51,53 @@ buildSystem = 'openmmBuildSystem.py'
 class ProtOpenDuckSimulation(EMProtocol):
     """
     This protocol will start a undocking simulation using OpenMM
+    
+    User IA Manual: OpenDucksSimulation Protocol
+
+The OpenDucksSimulation protocol enables ligand?receptor unbinding simulations
+using the OpenDucks framework integrated within Scipion-Chem. This protocol is
+used to explore the dissociation pathway of a ligand from a target binding site,
+generating a set of intermediate conformations and sampling the energy
+landscape along the unbinding coordinate.
+
+To start, the user must provide a complex consisting of a protein and a bound
+ligand. This structure must already be properly prepared and aligned, typically
+in PDB format, and should reflect the binding pose from which the ligand will be
+pulled. The user must also provide the force field parameters to be used for
+simulation, including topology and coordinate files for the system, along with
+any solvent or ion models if relevant. These inputs ensure that the molecular
+system is physically consistent before initiating the unbinding trajectory.
+
+A key parameter is the direction and distance along which the ligand is to be
+steered away from the binding site. The user can define this displacement
+vector explicitly or allow the protocol to compute it based on geometric
+criteria, such as the vector from the ligand center of mass to the mouth of the
+binding pocket. The number of windows or steps into which the unbinding pathway
+is divided determines the resolution of the trajectory. A higher number of
+windows results in a finer-grained sampling of the process, but also increases
+computational cost.
+
+Each window corresponds to a restrained molecular dynamics simulation, where the
+ligand is held at a fixed distance from the receptor while sampling conformations
+at that point along the path. The user can configure the simulation length,
+temperature, force constants, and restraint behavior for each window. These
+parameters control the stability and physical realism of the simulation, and
+should be adjusted based on the flexibility of the system and the desired level
+of sampling.
+
+The protocol produces a set of output structures and energies for each window,
+which can be analyzed to estimate binding free energy profiles or visualize the
+unbinding process. These outputs are compatible with other Scipion-Chem
+protocols for clustering, scoring, or further simulation. Additionally, a log
+file and summary of the protocol?s execution are generated, enabling full
+traceability of the parameters used and the simulation results obtained.
+
+In summary, this protocol provides an automated implementation of the OpenDucks
+method for ligand unbinding simulations. It allows users to investigate binding
+site dynamics, evaluate ligand?receptor interactions along dissociation paths,
+and generate ensembles for further computational analysis in structure-based
+drug discovery workflows.
+    
     """
     _label = 'openduck undocking simulation'
 
