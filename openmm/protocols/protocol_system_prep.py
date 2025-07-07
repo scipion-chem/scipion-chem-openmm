@@ -58,6 +58,51 @@ class ProtOpenMMSystemPrep(EMProtocol):
 
     It is necessary to insert a cleaned PDB structure from Protocol Import Atomic Structure
     or other similar protocols.
+
+User IA Manual: SystemPrep Protocol
+
+The SystemPrep protocol prepares a molecular system for simulation using the
+OpenMM engine. It takes as input a protein?ligand complex or other biomolecular
+assembly and produces all necessary topology and coordinate files required for
+energy minimization, equilibration, or production dynamics within the Scipion-Chem
+workflow.
+
+To begin, the user must provide a molecular structure in PDB format that includes
+all components to be simulated. This structure may contain a receptor, a ligand,
+solvent molecules, and optionally cofactors or ions. The protocol parses this
+structure and separates it into distinct components, assigning appropriate force
+field parameters based on user selection. The choice of force field affects how
+proteins, nucleic acids, and small molecules are parameterized, and should be
+consistent with the physical modeling goals of the simulation.
+
+In addition to the force field, the user can specify whether the system should be
+solvated. If solvation is enabled, a water box is added around the structure,
+with optional padding to define the box size and periodic boundary conditions.
+The ionic strength of the system can also be adjusted by adding counterions or
+salts to neutralize the charge and mimic physiological conditions. These settings
+allow for realistic simulation environments and influence the stability of the
+resulting system during dynamics.
+
+Another critical step in the protocol is the assignment of ligand parameters.
+Small molecules not covered by standard biomolecular force fields must be
+parameterized separately. The protocol allows users to supply ligand parameters
+in formats such as `.xml` and `.mol2`, or to rely on automated tools that generate
+parameters based on general force fields like GAFF or OpenFF. These parameters
+are integrated into the system topology before final assembly.
+
+The user can choose whether to perform energy minimization on the system once
+assembly is complete. Minimization helps to relieve steric clashes and optimize
+initial geometry before launching longer simulations. The resulting system,
+including topology, coordinates, box vectors, and integrator settings, is
+exported in OpenMM-compatible formats. These outputs serve as the input for
+subsequent simulation protocols within Scipion-Chem, such as molecular dynamics,
+umbrella sampling, or unbinding simulations.
+
+In summary, the SystemPrep protocol provides a complete and customizable workflow
+for assembling chemically and physically valid molecular systems. It ensures
+compatibility with OpenMM and other simulation engines, and serves as a
+foundation for rigorous and reproducible molecular modeling studies.
+
     """
     _label = 'system preparation'
     _cations = ['Cs+', 'K+', 'Li+', 'Na+', 'Rb+']
