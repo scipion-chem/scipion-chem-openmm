@@ -195,7 +195,7 @@ class ProtOpenMMSystemPrep(EMProtocol):
 
 
     def solvateStep(self):
-      recFile = self.getReceptorFilename()
+      recFile = self.getReceptorPDB()
       molFile = self.getSpecifiedMolFile() if self.inputFrom.get() == LIGAND else None
 
       with open(self.getParamsFile(), 'w') as f:
@@ -312,6 +312,14 @@ class ProtOpenMMSystemPrep(EMProtocol):
       elif self.inputFrom.get() == LIGAND:
           proteinFile = self.inputSetOfMols.get().getProteinFile()
       return os.path.abspath(proteinFile)
+
+    def getReceptorPDB(self):
+      recPDB = os.path.abspath(self._getExtraPath(f'{self.getSystemName()}.pdb'))
+      if not os.path.exists(recPDB):
+        recFile = self.getReceptorFilename()
+        args = f'{recFile} --output {recPDB}'
+        pwchemPlugin.runOPENBABEL(self, 'pdbfixer', args=args, cwd=self._getExtraPath())
+      return recPDB
 
     def getSystemName(self):
       return getBaseName(self.getReceptorFilename())
