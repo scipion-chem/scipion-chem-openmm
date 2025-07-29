@@ -61,7 +61,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         form.addSection(label=Message.LABEL_INPUT)
         form.addParam('inputSystem', params.PointerParam, label="Input structure: ", allowsNull=False,
                       important=True, pointerClass='OpenMMSystem', help='OpenMMSystem to execute the simulation over')
-        form.addParam('nSteps', params.IntParam, default=10000, label="Number of simualtion steps: ",
+        form.addParam('nSteps', params.IntParam, default=10000, label="Number of simulation steps: ",
                       help='Number of steps for simulation')
 
         tGroup = form.addGroup('Trajectory')

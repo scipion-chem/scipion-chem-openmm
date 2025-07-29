@@ -58,7 +58,7 @@ if __name__ == "__main__":
 		intArgs.append(float(pDic['fricCoef']) / picosecond)
 
 	if pDic['integrator'] not in ['VariableVerlet', 'VariableLangevin']:
-		intArgs.append(float(pDic['stepSize']) * picoseconds)
+		intArgs.append(float(pDic['stepSize']) * picosecond)
 
 	integrator = intClass(*intArgs)
 

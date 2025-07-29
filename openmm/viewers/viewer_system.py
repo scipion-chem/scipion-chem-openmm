@@ -24,19 +24,16 @@
 # *
 # **************************************************************************
 
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 
 import pyworkflow.protocol.params as params
 
 from pwchem.viewers import VmdViewPopen, MDSystemPViewer
-from pwchem.utils import natural_sort
-from pwchem.constants import TCL_MD_STR
 
 from ..objects import OpenMMSystem
 
-PENERGY, TEMP, VOL = 0, 1, 2
+PENERGY, TEMP, VOL = 'Potential Energy (kJ/mole)', "Temperature (K)", "Box Volume (nm^3)"
 
 class OpenMMSystemPViewer(MDSystemPViewer):
     """ Visualize the output of OpenMM simulation """
@@ -48,9 +45,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
 
     def _defineReportParams(self, form):
       group = form.addGroup('OpenMM reporter analysis')
-      group.addParam('repFeature', params.EnumParam,
-                     label='Display reporter feature: ', display=params.EnumParam.DISPLAY_HLIST, default=PENERGY,
-                     choices=['Potential energy (kJ/mol)', 'Temperature (K)', 'Volume (nm^3)'],
+      group.addParam('repFeature', params.StringParam, label='Display reporter feature: ', default='',
                      help='Which feature of the reporter to plot'
                      )
       group.addParam('displayReporter', params.LabelParam,
@@ -74,6 +69,16 @@ class OpenMMSystemPViewer(MDSystemPViewer):
         else:
             return self.protocol.outputSystem
 
+    def getMDFeatures(self):
+        mdSystem = self.getMDSystem()
+        repFile = mdSystem.getReportFile()
+        with open(repFile) as f:
+          headers = f.readline().strip()[1:].replace('"', '').split(',')
+
+        idxHeaders = [(i+1, h) for i, h in enumerate(headers[1:])]
+        return idxHeaders
+
+
     def _showReportParameter(self, paramName=None):
       system = self.getMDSystem()
       repFile = system.getReportFile()
@@ -81,28 +86,12 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       data = np.loadtxt(repFile, delimiter=',')
       step = data[:, 0]
 
-      if self.repFeature.get() == PENERGY:
-        potentialEnergy = data[:, 1]
-        plt.plot(step, potentialEnergy)
-        plt.title(f'{system.getSystemName()} trajectory potential energy')
-        plt.xlabel("Step")
-        plt.ylabel("Potential energy (kJ/mol)")
-        plt.show()
-
-      elif self.repFeature.get() == TEMP:
-        temperature = data[:, 2]
-        plt.plot(step, temperature)
-        plt.title(f'{system.getSystemName()} trajectory temperature')
-        plt.xlabel("Step")
-        plt.ylabel("Temperature (K)")
-        plt.show()
-
-      elif self.repFeature.get() == VOL:
-        volume = data[:, 3]
-        plt.plot(step, volume)
-        plt.title(f'{system.getSystemName()} trajectory volume')
-        plt.xlabel("Step")
-        plt.ylabel("Volume (nm^3)")
-        plt.show()
+      valIdx, valName = eval(self.repFeature.get())
+      values = data[:, valIdx]
+      plt.plot(step, values)
+      plt.title(f'"{system.getSystemName()}" trajectory "{valName}"')
+      plt.xlabel("Step")
+      plt.ylabel(f"{valName}")
+      plt.show()
 
 

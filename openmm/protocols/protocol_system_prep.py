@@ -51,6 +51,9 @@ SMIRNOFF_Vs = ['openff-1.0.1', 'openff-1.1.1', 'openff-1.0.0-RC1', 'openff-1.2.0
 SMIRNOFF_Vs.sort()
 ESPALOMA_Vs = ['espaloma-0.3.2']
 
+CATION_NAMES = ['Cs+', 'K+', 'Li+', 'Na+', 'Rb+']
+ANION_NAMES = ['Cl-', 'Br-', 'F-', 'I-']
+
 class ProtOpenMMSystemPrep(EMProtocol):
     """
     This protocol will start a Molecular Dynamics preparation. It will create the system
@@ -60,11 +63,6 @@ class ProtOpenMMSystemPrep(EMProtocol):
     or other similar protocols.
     """
     _label = 'system preparation'
-    _cations = ['Cs+', 'K+', 'Li+', 'Na+', 'Rb+']
-    _anions = ['Cl-', 'Br-', 'F-', 'I-']
-
-    # -------------------------- DEFINE constants ----------------------------
-
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
@@ -78,10 +76,10 @@ class ProtOpenMMSystemPrep(EMProtocol):
                         label='Input from: ', choices=['AtomStruct', 'SetOfSmallMolecules'],
                         help='Type of input you want to use')
         iGroup.addParam('inputStructure', params.PointerParam, pointerClass='SchrodingerAtomStruct, AtomStruct',
-                        label='Input structure to be prepared for MD:', allowsNull=False, condition='inputFrom==0',
+                        label='Input structure to be prepared for MD:', condition='inputFrom==0',
                         help='Atomic structure to be prepared for MD by solvation, ions addition etc')
         iGroup.addParam('inputSetOfMols', params.PointerParam, pointerClass='SetOfSmallMolecules',
-                        label='Input set of molecules:', allowsNull=False, condition='inputFrom==1',
+                        label='Input set of molecules:', condition='inputFrom==1',
                         help='Input set of docked molecules. One of them will be prepared together with its target')
         iGroup.addParam('inputLigand', params.StringParam, condition='inputFrom==1',
                         label='Ligand to prepare: ',
@@ -182,11 +180,11 @@ class ProtOpenMMSystemPrep(EMProtocol):
                         help='Whether to add ions to the system until neutralize.')
 
         iGroup.addParam('cationType', params.EnumParam,
-                      label='Cation to add: ', choices=self._cations, default=3,
+                      label='Cation to add: ', choices=CATION_NAMES, default=3,
                       help='Which cation to add in the system')
 
         iGroup.addParam('anionType', params.EnumParam,
-                      label='Anions to add: ', choices=self._anions, default=0,
+                      label='Anions to add: ', choices=ANION_NAMES, default=0,
                       help='Which anion to add in the system')
 
     def _insertAllSteps(self):

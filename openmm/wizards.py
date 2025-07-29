@@ -34,6 +34,7 @@ from pwchem.wizards import SelectMultiChainWizard, SelectElementWizard, \
   SelectChainWizardQT, SelectResidueWizardQT, SelectAtomWizardQT
 
 from openmm.protocols import ProtOpenMMSystemPrep, ProtOpenDuckSimulation
+from openmm.viewers import OpenMMSystemPViewer
 
 SelectElementWizard().addTarget(protocol=ProtOpenMMSystemPrep,
                                targets=['inputLigand'],
@@ -59,3 +60,8 @@ SelectAtomWizardQT().addTarget(protocol=ProtOpenDuckSimulation,
                                targets=['intAtom'],
                                inputs=['inputSetOfMols', 'intChain', 'intResidue'],
                                outputs=['intAtom'])
+
+SelectElementWizard().addTarget(protocol=OpenMMSystemPViewer,
+                                targets=['repFeature'],
+                                inputs=['getMDFeatures'],
+                                outputs=['repFeature'])
