@@ -45,16 +45,16 @@ def setCharmmForces(system):
 		for force in system.getForces():
 			if isinstance(force, NonbondedForce):
 				force.setForceGroup(0)
-				force.addGlobalParameter("protein_scale", 1)
-				force.addGlobalParameter("ligand_scale", 1)
+				force.addGlobalParameter("proteinScale", 1)
+				force.addGlobalParameter("ligandScale", 1)
 				for i in range(force.getNumParticles()):
 					charge, sigma, epsilon = force.getParticleParameters(i)
 
-					param = "protein_scale" if i in protein else "ligand_scale"
+					param = "proteinScale" if i in protein else "ligandScale"
 					force.setParticleParameters(i, 0, 0, 0)
 					force.addParticleParameterOffset(param, i, charge, sigma, epsilon)
 				for i in range(force.getNumExceptions()):
-					p1, p2, chargeProd, sigma, epsilon = force.getExceptionParameters(i)
+					p1, p2, _, _, _ = force.getExceptionParameters(i)
 					force.setExceptionParameters(i, p1, p2, 0, 0, 0)
 			elif isinstance(force, CustomNonbondedForce):
 				force.setForceGroup(1)
@@ -67,21 +67,21 @@ def setAmberForces(system):
 		for force in system.getForces():
 			if isinstance(force, NonbondedForce):
 				force.setForceGroup(0)
-				force.addGlobalParameter("receptor_coulomb_scale", 1)
-				force.addGlobalParameter("receptor_lj_scale", 1)
-				force.addGlobalParameter("ligand_coulomb_scale", 1)
-				force.addGlobalParameter("ligand_lj_scale", 1)
+				force.addGlobalParameter("receptorCoulombScale", 1)
+				force.addGlobalParameter("receptorLjScale", 1)
+				force.addGlobalParameter("ligandCoulombScale", 1)
+				force.addGlobalParameter("ligandLjScale", 1)
 				for i in range(force.getNumParticles()):
 					charge, sigma, epsilon = force.getParticleParameters(i)
 					force.setParticleParameters(i, 0, 0, 0)
 					if i in protein:
-						force.addParticleParameterOffset("receptor_coulomb_scale", i, charge, 0, 0)
-						force.addParticleParameterOffset("receptor_lj_scale", i, 0, sigma, epsilon)
+						force.addParticleParameterOffset("receptorCoulombScale", i, charge, 0, 0)
+						force.addParticleParameterOffset("receptorLjScale", i, 0, sigma, epsilon)
 					elif i in ligand:
-						force.addParticleParameterOffset("ligand_coulomb_scale", i, charge, 0, 0)
-						force.addParticleParameterOffset("ligand_lj_scale", i, 0, sigma, epsilon)
+						force.addParticleParameterOffset("ligandCoulombScale", i, charge, 0, 0)
+						force.addParticleParameterOffset("ligandLjScale", i, 0, sigma, epsilon)
 				for i in range(force.getNumExceptions()):
-					p1, p2, chargeProd, sigma, epsilon = force.getExceptionParameters(i)
+					p1, p2, _, _, _ = force.getExceptionParameters(i)
 					force.setExceptionParameters(i, p1, p2, 0, 0, 0)
 			else:
 				force.setForceGroup(2)
@@ -94,37 +94,37 @@ def setSystemForces(system, ff):
 				system = setAmberForces(system)
 		return system
 
-def coulomb_energy(context, protein_scale, ligand_scale):
-		context.setParameter("protein_scale", protein_scale)
-		context.setParameter("ligand_scale", ligand_scale)
+def coulombEnergy(context, proteinScale, ligandScale):
+		context.setParameter("proteinScale", proteinScale)
+		context.setParameter("ligandScale", ligandScale)
 		return context.getState(getEnergy=True, groups={0}).getPotentialEnergy()
 
-def energy(context, receptor_coulomb_scale, receptor_lj_scale, ligand_coulomb_scale, ligand_lj_scale):
-		context.setParameter("receptor_coulomb_scale", receptor_coulomb_scale)
-		context.setParameter("receptor_lj_scale", receptor_lj_scale)
-		context.setParameter("ligand_coulomb_scale", ligand_coulomb_scale)
-		context.setParameter("ligand_lj_scale", ligand_lj_scale)
+def energy(context, receptorCoulombScale, receptorLjScale, ligandCoulombScale, ligandLjScale):
+		context.setParameter("receptorCoulombScale", receptorCoulombScale)
+		context.setParameter("receptorLjScale", receptorLjScale)
+		context.setParameter("ligandCoulombScale", ligandCoulombScale)
+		context.setParameter("ligandLjScale", ligandLjScale)
 		return context.getState(getEnergy=True, groups={0}).getPotentialEnergy()
 
 def getCharmmEnergies(context):
-		total_coulomb = coulomb_energy(context, 1, 1)
-		protein_coulomb = coulomb_energy(context, 1, 0)
-		ligand_coulomb = coulomb_energy(context, 0, 1)
+		totalCoulomb = coulombEnergy(context, 1, 1)
+		proteinCoulomb = coulombEnergy(context, 1, 0)
+		ligandCoulomb = coulombEnergy(context, 0, 1)
 
-		coulomb = total_coulomb - protein_coulomb - ligand_coulomb
+		coulomb = totalCoulomb - proteinCoulomb - ligandCoulomb
 		lj = context.getState(getEnergy=True, groups={1}).getPotentialEnergy()
 		return coulomb, lj
 
 def getAmberEnergies(context):
-		total_coulomb = energy(context, 1, 0, 1, 0)
-		receptor_coulomb = energy(context, 1, 0, 0, 0)
-		ligand_coulomb = energy(context, 0, 0, 1, 0)
-		total_lj = energy(context, 0, 1, 0, 1)
-		receptor_lj = energy(context, 0, 1, 0, 0)
-		ligand_lj = energy(context, 0, 0, 0, 1)
+		totalCoulomb = energy(context, 1, 0, 1, 0)
+		receptorCoulomb = energy(context, 1, 0, 0, 0)
+		ligandCoulomb = energy(context, 0, 0, 1, 0)
+		totalLj = energy(context, 0, 1, 0, 1)
+		receptorLj = energy(context, 0, 1, 0, 0)
+		ligandLj = energy(context, 0, 0, 0, 1)
 
-		coulomb = total_coulomb - receptor_coulomb - ligand_coulomb
-		lj = total_lj - receptor_lj - ligand_lj
+		coulomb = totalCoulomb - receptorCoulomb - ligandCoulomb
+		lj = totalLj - receptorLj - ligandLj
 		return coulomb, lj
 
 def getInteractionEnergies(context, ff):
@@ -181,9 +181,9 @@ if __name__ == "__main__":
 			positions = pdb.positions
 
 	solventNames = ['HOH'] + ION_NAMES
-	solvent = set([a.index for a in pdb.topology.atoms() if a.residue.name in solventNames])
-	ligand = set([a.index for a in pdb.topology.atoms() if a.residue.name in ('LIG')])
-	protein = set([a.index for a in pdb.topology.atoms() if a.index not in solvent and a.index not in ligand])
+	solvent = {a.index for a in pdb.topology.atoms() if a.residue.name in solventNames}
+	ligand = {a.index for a in pdb.topology.atoms() if a.residue.name in ('LIG')}
+	protein = {a.index for a in pdb.topology.atoms() if a.index not in solvent and a.index not in ligand}
 
 	ff = pDic['mFF']
 	system = setSystemForces(system, ff)
@@ -207,10 +207,10 @@ if __name__ == "__main__":
 
 
 	saveEnergies(coEs, ljEs)
-	avg_co, avg_lj = np.mean(coEs), np.mean(ljEs)
+	avgCo, avgLj = np.mean(coEs), np.mean(ljEs)
 	if len(frames) > 1:
-		std_co, std_lj = np.std(coEs), np.std(ljEs)
+		stdCo, stdLj = np.std(coEs), np.std(ljEs)
 	else:
-		std_co, std_lj = 0, 0
+		stdCo, stdLj = 0, 0
 
 

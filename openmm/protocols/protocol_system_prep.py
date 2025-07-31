@@ -54,6 +54,8 @@ ESPALOMA_Vs = ['espaloma-0.3.2']
 CATION_NAMES = ['Cs+', 'K+', 'Li+', 'Na+', 'Rb+']
 ANION_NAMES = ['Cl-', 'Br-', 'F-', 'I-']
 
+LIG_INPUT = f'inputFrom == {LIGAND}'
+
 class ProtOpenMMSystemPrep(EMProtocol):
     """
     This protocol will start a Molecular Dynamics preparation. It will create the system
@@ -185,14 +187,14 @@ class ProtOpenMMSystemPrep(EMProtocol):
                         label='Input structure to be prepared for MD:', condition='inputFrom==0',
                         help='Atomic structure to be prepared for MD by solvation, ions addition etc')
         iGroup.addParam('inputSetOfMols', params.PointerParam, pointerClass='SetOfSmallMolecules',
-                        label='Input set of molecules:', condition='inputFrom==1',
+                        label='Input set of molecules:', condition=LIG_INPUT,
                         help='Input set of docked molecules. One of them will be prepared together with its target')
-        iGroup.addParam('inputLigand', params.StringParam, condition='inputFrom==1',
+        iGroup.addParam('inputLigand', params.StringParam, condition=LIG_INPUT,
                         label='Ligand to prepare: ',
                         help='Specific ligand to prepare in the system')
 
         ffGroup = form.addGroup('System force fields')
-        self._defineFFParams(ffGroup, ligandCondition='inputFrom==1')
+        self._defineFFParams(ffGroup, ligandCondition=LIG_INPUT)
 
         ffGroup = form.addGroup('Non bonded interactions')
         self._defineNonBondedParams(ffGroup)
@@ -225,31 +227,9 @@ class ProtOpenMMSystemPrep(EMProtocol):
           f.write(f'ligandFile :: {molFile}\n')
           f.write(f'ligandFF :: {self.getLigandFFVersion()}\n')
 
-        mFF, wFF = self.getFFFiles()
-        f.write(f'mFF :: {mFF}\nwFF :: {wFF}\n')
-        f.write(f'nonbondedMethod :: {self.getEnumText("nonbondedMethod")}\n')
-        f.write(f'nonbondedCutoff :: {self.nonbondedCutoff.get()}\n')
-        f.write(f'constraints :: {self.getEnumText("constraints")}\n')
-
-        wModel = self.getWaterModel(wFF)
-        f.write(f'wModel :: {wModel}\n')
-
-        f.write(f'addH :: {self.addH.get()}\n')
-        if self.addH.get():
-          f.write(f'hPH :: {self.hPH.get()}\n')
-
-        if self.sizeType.get() == 0:
-          f.write(f'boxSize :: {self.distA.get()}, {self.distB.get()}, {self.distC.get()}\n')
-        else:
-          f.write(f'padDist :: {self.padDist.get()}\n')
-
-        f.write(f'saltConc :: {self.saltConc.get()}\n')
-        f.write(f'neutralize :: {self.neutralize.get()}\n')
-        f.write(f'cationType :: {self.getEnumText("cationType")}\n')
-        f.write(f'anionType :: {self.getEnumText("anionType")}\n')
+        f.write(self.getFFParams())
 
       Plugin.runScript(self, 'openmmPrepareSystem.py', args=self.getParamsFile(), env=OPENMM_DIC, cwd=self._getPath())
-
 
     def createOutputStep(self):
       systemBasename = self.getSystemName()
@@ -263,6 +243,32 @@ class ProtOpenMMSystemPrep(EMProtocol):
 
       self._defineOutputs(outputSystem=outSystem)
       # self._defineSourceRelation(self.inputStructure, outSystem)
+
+    def getFFParams(self):
+        ffStr = ''
+        mFF, wFF = self.getFFFiles()
+        ffStr += f'mFF :: {mFF}\nwFF :: {wFF}\n'
+        ffStr += f'nonbondedMethod :: {self.getEnumText("nonbondedMethod")}\n'
+        ffStr += f'nonbondedCutoff :: {self.nonbondedCutoff.get()}\n'
+        ffStr += f'constraints :: {self.getEnumText("constraints")}\n'
+
+        wModel = self.getWaterModel(wFF)
+        ffStr += f'wModel :: {wModel}\n'
+
+        ffStr += f'addH :: {self.addH.get()}\n'
+        if self.addH.get():
+          ffStr += f'hPH :: {self.hPH.get()}\n'
+
+        if self.sizeType.get() == 0:
+          ffStr += f'boxSize :: {self.distA.get()}, {self.distB.get()}, {self.distC.get()}\n'
+        else:
+          ffStr += f'padDist :: {self.padDist.get()}\n'
+
+        ffStr += f'saltConc :: {self.saltConc.get()}\n'
+        ffStr += f'neutralize :: {self.neutralize.get()}\n'
+        ffStr += f'cationType :: {self.getEnumText("cationType")}\n'
+        ffStr += f'anionType :: {self.getEnumText("anionType")}\n'
+        return ffStr
 
     def getLigandFileDir(self):
       lDir = os.path.abspath(self._getExtraPath('ligand'))
@@ -280,9 +286,9 @@ class ProtOpenMMSystemPrep(EMProtocol):
             f.write(f"ligandFiles: {molFilesStr}\n")
 
             f.write(f'outputDir: {self.getLigandFileDir()}\n')
-            f.write(f'doHydrogens: True\n')
-            f.write(f'doGasteiger: False\n')
-            f.write(f'sanitize: False\n')
+            f.write('doHydrogens: True\n')
+            f.write('doGasteiger: False\n')
+            f.write('sanitize: False\n')
         return paramsFile
 
     def getWaterModel(self, wFF):

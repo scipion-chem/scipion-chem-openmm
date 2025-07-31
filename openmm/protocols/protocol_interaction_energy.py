@@ -55,7 +55,6 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep, ProtOpenMMSystemSimulati
     _label = 'system interaction energy'
     stepsExecutionMode = params.STEPS_PARALLEL
 
-
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
         """ Define the input parameters that will be used.
@@ -141,28 +140,7 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep, ProtOpenMMSystemSimulati
                 f.write(f'ligandFile :: {molFile}\n')
                 f.write(f'ligandFF :: {self.getLigandFFVersion()}\n')
 
-                mFF, wFF = self.getFFFiles()
-                f.write(f'mFF :: {mFF}\nwFF :: {wFF}\n')
-                f.write(f'nonbondedMethod :: {self.getEnumText("nonbondedMethod")}\n')
-                f.write(f'nonbondedCutoff :: {self.nonbondedCutoff.get()}\n')
-                f.write(f'constraints :: {self.getEnumText("constraints")}\n')
-
-                wModel = self.getWaterModel(wFF)
-                f.write(f'wModel :: {wModel}\n')
-
-                f.write(f'addH :: {self.addH.get()}\n')
-                if self.addH.get():
-                  f.write(f'hPH :: {self.hPH.get()}\n')
-
-                if self.sizeType.get() == 0:
-                  f.write(f'boxSize :: {self.distA.get()}, {self.distB.get()}, {self.distC.get()}\n')
-                else:
-                  f.write(f'padDist :: {self.padDist.get()}\n')
-
-                f.write(f'saltConc :: {self.saltConc.get()}\n')
-                f.write(f'neutralize :: {self.neutralize.get()}\n')
-                f.write(f'cationType :: {self.getEnumText("cationType")}\n')
-                f.write(f'anionType :: {self.getEnumText("anionType")}\n')
+                f.write(self.getFFParams())
 
             Plugin.runScript(self, 'openmmPrepareSystem.py', args=paramsFile, env=OPENMM_DIC, cwd=oDir)
 
@@ -221,7 +199,7 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep, ProtOpenMMSystemSimulati
 
                 newRepFile = self._getPath('md_log.txt')
                 headerStr = self.getHeaderStr(repFile) + \
-                            f',"Interaction Coulomb Energy (KJ/mol)","Interaction LJ Energy (KJ/mol)"'
+                            ',"Interaction Coulomb Energy (KJ/mol)","Interaction LJ Energy (KJ/mol)"'
                 np.savetxt(newRepFile, data, delimiter=",", comments="", fmt="%f", header=headerStr)
                 outSystem.setReportFile(newRepFile)
 
