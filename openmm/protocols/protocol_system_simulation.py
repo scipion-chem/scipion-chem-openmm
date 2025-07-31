@@ -48,6 +48,51 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
 
     # -------------------------- DEFINE param functions ----------------------
+    def _defineMinimization(self, form):
+        form.addParam('addMinimization', params.BooleanParam, default=True, label="Add minimization: ",
+                      help='Add energy minimization')
+        form.addParam('minimTol', params.FloatParam, default=10, label="Minimization tolerance (kJ/mol): ",
+                      condition='addMinimization',
+                      help='This specifies how precisely the energy minimum must be located.  Minimization is halted '
+                           'once the root-mean-square value of all force components reaches this tolerance.')
+        form.addParam('maxIter', params.IntParam, default=10000, label="Maximum iterations: ",
+                      condition='addMinimization',
+                      help='The maximum number of iterations to perform.  If this is 0, minimization is continued until'
+                           ' the results converge without regard to how many iterations it takes.')
+        return form
+
+    def _defineIntegrator(self, form):
+        form.addParam('integrator', params.EnumParam, default=1, label="Simulation integrator: ",
+                      choices=['Verlet', 'Langevin', 'LangevinMiddle', 'NoseHoover', 'Brownian', 'VariableVerlet',
+                               'VariableLangevin'],
+                      help='http://docs.openmm.org/latest/userguide/theory/04_integrators.html')
+
+        form.addParam('stepSize', params.FloatParam, default=0.004, label="Step size for integration (ps): ",
+                      condition='not integrator in [5, 6]',
+                      help='The step size with which to integrate the system (in picoseconds)')
+        form.addParam('fricCoef', params.FloatParam, default=1, label="Friction coefficient (1/ps): ",
+                      condition='integrator in [1, 2, 4, 6]',
+                      help='The friction coefficient which couples the system to the heat bath (in inverse picoseconds)')
+        form.addParam('temperature', params.FloatParam, default=300, label="Simulation temperature (K): ",
+                      condition='integrator in [1, 2, 3, 4, 6]', help='Temperature for the simulation')
+        form.addParam('colFreq', params.FloatParam, default=1, label="Collision frequency (1/ps): ",
+                      condition='integrator in [3]',
+                      help='The friction coefficient which couples the system to the heat bath (in inverse picoseconds)')
+
+        form.addParam('errTol', params.FloatParam, default=0.001, label="Error tolerance: ",
+                      condition='integrator in [5, 6]', help='The error tolerance')
+        return form
+
+    def _defineBarostat(self, form):
+        form.addParam('addBarostat', params.BooleanParam, default=False, label="Add barostat: ",
+                      help='Add MonteCarlo Barostat to run a NPT simulation')
+        form.addParam('pressure', params.FloatParam, default=1, label="Pressure (bar): ", condition='addBarostat',
+                      help='The default pressure acting on the system (in bar)')
+        form.addParam('barFreq', params.IntParam, default=25, label="Barostat frequency: ",
+                      condition='addBarostat',
+                      help='The frequency at which Monte Carlo pressure changes should be attempted (in time steps)')
+        return form
+
     def _defineParams(self, form):
         """ Define the input parameters that will be used.
         """
@@ -69,48 +114,14 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                         help='Save the state of the system each x steps for the trajectory')
 
         mGroup = form.addGroup('Minimization')
-        mGroup.addParam('addMinimization', params.BooleanParam, default=True, label="Add minimization: ",
-                      help='Add energy minimization')
-        mGroup.addParam('minimTol', params.FloatParam, default=10, label="Minimization tolerance (kJ/mol): ",
-                      condition='addMinimization',
-                      help='This specifies how precisely the energy minimum must be located.  Minimization is halted '
-                           'once the root-mean-square value of all force components reaches this tolerance.')
-        mGroup.addParam('maxIter', params.IntParam, default=10000, label="Maximum iterations: ",
-                      condition='addMinimization',
-                      help='The maximum number of iterations to perform.  If this is 0, minimization is continued until'
-                           ' the results converge without regard to how many iterations it takes.')
+        self._defineMinimization(mGroup)
 
         iGroup = form.addGroup('Integrator')
-        iGroup.addParam('integrator', params.EnumParam, default=1, label="Simulation integrator: ",
-                      choices=['Verlet', 'Langevin', 'LangevinMiddle', 'NoseHoover', 'Brownian', 'VariableVerlet',
-                               'VariableLangevin'],
-                      help='http://docs.openmm.org/latest/userguide/theory/04_integrators.html')
-
-        iGroup.addParam('stepSize', params.FloatParam, default=0.004, label="Step size for integration (ps): ",
-                      condition='not integrator in [5, 6]',
-                      help='The step size with which to integrate the system (in picoseconds)')
-        iGroup.addParam('fricCoef', params.FloatParam, default=1, label="Friction coefficient (1/ps): ",
-                      condition='integrator in [1, 2, 4, 6]',
-                      help='The friction coefficient which couples the system to the heat bath (in inverse picoseconds)')
-        iGroup.addParam('temperature', params.FloatParam, default=300, label="Simulation temperature (K): ",
-                      condition='integrator in [1, 2, 3, 4, 6]',
-                      help='Temperature for the simulation')
-        iGroup.addParam('colFreq', params.FloatParam, default=1, label="Collision frequency (1/ps): ",
-                      condition='integrator in [3]',
-                      help='The friction coefficient which couples the system to the heat bath (in inverse picoseconds)')
-
-        iGroup.addParam('errTol', params.FloatParam, default=0.001, label="Error tolerance: ",
-                      condition='integrator in [5, 6]',
-                      help='The error tolerance')
+        self._defineIntegrator(iGroup)
 
         bGroup = form.addGroup('Barostat')
-        bGroup.addParam('addBarostat', params.BooleanParam, default=False, label="Add barostat: ",
-                      help='Add MonteCarlo Barostat to run a NPT simulation')
-        bGroup.addParam('pressure', params.FloatParam, default=1, label="Pressure (bar): ", condition='addBarostat',
-                      help='The default pressure acting on the system (in bar)')
-        bGroup.addParam('barFreq', params.IntParam, default=25, label="Barostat frequency: ",
-                      condition='addBarostat',
-                      help='The frequency at which Monte Carlo pressure changes should be attempted (in time steps)')
+        self._defineBarostat(bGroup)
+
 
     def _insertAllSteps(self):
       self._insertFunctionStep('simulateStep')

@@ -43,12 +43,12 @@ from pwchem.constants import RDKIT_DIC
 
 from openmm import Plugin
 from openmm.constants import OPENMM_DIC
-from openmm.protocols import ProtOpenMMSystemPrep
+from openmm.protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation
 
 SYSTEM, MOLSET = 0, 1
 scriptLigPrepName = 'rdkit_addHydrogens.py'
 
-class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep):
+class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation):
     """
     This protocol will calculate the interaction energy of protein and ligand in a system
     """
@@ -71,40 +71,12 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep):
                       help='Input docked molecules to execute the interaction analysis over')
 
         mGroup = form.addGroup('Minimization',
-                               condition=f'(inputSystem and not inputSystem.hasTrajectory()) or inputFrom=={MOLSET}')
-        mGroup.addParam('addMinimization', params.BooleanParam, default=True, label="Add minimization: ",
-                        help='Add energy minimization to the original system if there is no trajectory')
-        mGroup.addParam('minimTol', params.FloatParam, default=10, label="Minimization tolerance (kJ/mol): ",
-                        condition='addMinimization',
-                        help='This specifies how precisely the energy minimum must be located.  Minimization is halted '
-                             'once the root-mean-square value of all force components reaches this tolerance.')
-        mGroup.addParam('maxIter', params.IntParam, default=10000, label="Maximum iterations: ",
-                        condition='addMinimization',
-                        help='The maximum number of iterations to perform.  If this is 0, minimization is continued until'
-                             ' the results converge without regard to how many iterations it takes.')
+                               condition=f'(inputSystem and not inputSystem.hasTrajectory()) or inputFrom=={MOLSET}',
+                               help='Add energy minimization to the original system if there is no trajectory')
+        self._defineMinimization(mGroup)
 
         iGroup = form.addGroup('Integrator')
-        iGroup.addParam('integrator', params.EnumParam, default=1, label="Simulation integrator: ",
-                      choices=['Verlet', 'Langevin', 'LangevinMiddle', 'NoseHoover', 'Brownian', 'VariableVerlet',
-                               'VariableLangevin'],
-                      help='http://docs.openmm.org/latest/userguide/theory/04_integrators.html')
-
-        iGroup.addParam('stepSize', params.FloatParam, default=0.004, label="Step size for integration (ps): ",
-                      condition='not integrator in [5, 6]',
-                      help='The step size with which to integrate the system (in picoseconds)')
-        iGroup.addParam('fricCoef', params.FloatParam, default=1, label="Friction coefficient (1/ps): ",
-                      condition='integrator in [1, 2, 4, 6]',
-                      help='The friction coefficient which couples the system to the heat bath (in inverse picoseconds)')
-        iGroup.addParam('temperature', params.FloatParam, default=300, label="Simulation temperature (K): ",
-                      condition='integrator in [1, 2, 3, 4, 6]',
-                      help='Temperature for the simulation')
-        iGroup.addParam('colFreq', params.FloatParam, default=1, label="Collision frequency (1/ps): ",
-                      condition='integrator in [3]',
-                      help='The friction coefficient which couples the system to the heat bath (in inverse picoseconds)')
-
-        iGroup.addParam('errTol', params.FloatParam, default=0.001, label="Error tolerance: ",
-                      condition='integrator in [5, 6]',
-                      help='The error tolerance')
+        self._defineIntegrator(iGroup)
 
         form.addSection("System preparation forcefield")
         ffGroup = form.addGroup('System force fields', condition=f'inputFrom=={MOLSET}')
@@ -198,7 +170,7 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep):
     def simulateStep(self, molFile=None):
         if not molFile or os.path.exists(molFile):
             if molFile:
-                molBase, sysName = getBaseName(molFile), self.getSystemName()
+                molBase = getBaseName(molFile)
                 oDir = self._getExtraPath(molBase)
             else:
                 oDir = self._getPath()
@@ -233,9 +205,6 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep):
 
             Plugin.runScript(self, 'openmmInteractionEnergy.py', args=paramsFile, env=OPENMM_DIC, cwd=oDir)
 
-        else:
-            pass
-            # print(f'MolFile: {molFile} could not be converted in sdf')
 
     def createOutputStep(self):
         if self.inputFrom.get() == SYSTEM:
@@ -337,14 +306,14 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep):
 ####################### SUMMARY FUNCTIONS ############################
 
     def getSummaryStr(self, coulombEnergies, ljEnergies):
-      avg_co, avg_lj = np.mean(coulombEnergies), np.mean(ljEnergies)
+      avgCo, avgLj = np.mean(coulombEnergies), np.mean(ljEnergies)
       if len(ljEnergies) > 1:
-        std_co, std_lj = np.std(coulombEnergies), np.std(ljEnergies)
+        stdCo, stdLj = np.std(coulombEnergies), np.std(ljEnergies)
       else:
-        std_co, std_lj = 0, 0
+        stdCo, stdLj = 0, 0
 
-      energyStr = f'Average Coulomb energy:\t\t{avg_co:.4f} ± {std_co:.4f} kJ/mol\n' \
-                  f'Average LJ energy:\t\t{avg_lj:.4f} ± {std_lj:.4f} kJ/mol"\n'
+      energyStr = f'Average Coulomb energy:\t\t{avgCo:.4f} ± {stdCo:.4f} kJ/mol\n' \
+                  f'Average LJ energy:\t\t{avgLj:.4f} ± {stdLj:.4f} kJ/mol"\n'
       return energyStr
 
     def getOutputFile(self, molBase=None):
