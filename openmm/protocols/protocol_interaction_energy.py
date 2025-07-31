@@ -35,16 +35,25 @@ import numpy as np
 
 from pyworkflow.protocol import params
 from pyworkflow.utils import Message
-from pwem.protocols import EMProtocol
+import pyworkflow.object as pwobj
+
+from pwchem import Plugin as pwchemPlugin
+from pwchem.utils import getBaseName, convertToSdf
+from pwchem.constants import RDKIT_DIC
 
 from openmm import Plugin
 from openmm.constants import OPENMM_DIC
+from openmm.protocols import ProtOpenMMSystemPrep
 
-class ProtOpenMMInteractionEnergy(EMProtocol):
+SYSTEM, MOLSET = 0, 1
+scriptLigPrepName = 'rdkit_addHydrogens.py'
+
+class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep):
     """
     This protocol will calculate the interaction energy of protein and ligand in a system
     """
     _label = 'system interaction energy'
+    stepsExecutionMode = params.STEPS_PARALLEL
 
 
     # -------------------------- DEFINE param functions ----------------------
@@ -52,15 +61,17 @@ class ProtOpenMMInteractionEnergy(EMProtocol):
         """ Define the input parameters that will be used.
         """
         form.addSection(label=Message.LABEL_INPUT)
-        form.addParam('inputSystem', params.PointerParam, label="Input structure: ", allowsNull=False,
+        form.addParam('inputFrom', params.EnumParam, default=SYSTEM,
+                      label='Input from: ', choices=['OpenMMSystem', 'SetOfSmallMolecules'],
+                      help='Type of input you want to use')
+        form.addParam('inputSystem', params.PointerParam, label="Input structure: ", condition=f'inputFrom=={SYSTEM}',
                       important=True, pointerClass='OpenMMSystem', help='OpenMMSystem to execute the calculation over')
+        form.addParam('inputSetOfMols', params.PointerParam, label="Input docked molecules: ",
+                      condition=f'inputFrom=={MOLSET}', important=True, pointerClass='SetOfSmallMolecules',
+                      help='Input docked molecules to execute the interaction analysis over')
 
-        form.addParam('nTraj', params.IntParam, default=10, label="Trajectory sampling frequency: ",
-                      condition='not inputSystem or inputSystem.hasTrajectory()',
-                      help='The interaction energy will be calculated over the frames of the trajectory, taking a '
-                           'frame for each of this number of steps.')
-
-        mGroup = form.addGroup('Minimization', condition='not inputSystem or not inputSystem.hasTrajectory()')
+        mGroup = form.addGroup('Minimization',
+                               condition=f'(inputSystem and not inputSystem.hasTrajectory()) or inputFrom=={MOLSET}')
         mGroup.addParam('addMinimization', params.BooleanParam, default=True, label="Add minimization: ",
                         help='Add energy minimization to the original system if there is no trajectory')
         mGroup.addParam('minimTol', params.FloatParam, default=10, label="Minimization tolerance (kJ/mol): ",
@@ -95,61 +106,175 @@ class ProtOpenMMInteractionEnergy(EMProtocol):
                       condition='integrator in [5, 6]',
                       help='The error tolerance')
 
+        form.addSection("System preparation forcefield")
+        ffGroup = form.addGroup('System force fields', condition=f'inputFrom=={MOLSET}')
+        self._defineFFParams(ffGroup)
+
+        ffGroup = form.addGroup('Non bonded interactions', condition=f'inputFrom=={MOLSET}')
+        self._defineNonBondedParams(ffGroup)
+
+        ffGroup = form.addGroup('Hydrogens', condition=f'inputFrom=={MOLSET}')
+        self._defineHydrogenParams(ffGroup)
+
+        form.addSection("System preparation solvent box")
+        sGroup = form.addGroup('Boundary box', condition=f'inputFrom=={MOLSET}')
+        self._defineBoxParams(sGroup)
+
+        iGroup = form.addGroup('Ions', condition=f'inputFrom=={MOLSET}')
+        self._defineSaltParams(iGroup)
+
+        form.addParallelSection(threads=4, mpi=1)
+
+
     def _insertAllSteps(self):
-      self._insertFunctionStep('simulateStep')
-      self._insertFunctionStep('createOutputStep')
+        simSteps = []
+        if self.inputFrom.get() == MOLSET:
+            cStep = self._insertFunctionStep(self.convertInputStep)
 
-
-    def simulateStep(self):
-      sysFile, structFile = self.getSystemFile(), self.getStructureFile()
-      trajFile = self.getSystemTrajFile()
-
-      with open(self.getParamsFile(), 'w') as f:
-        f.write(f'systemFile :: {sysFile}\n')
-        f.write(f'structureFile :: {structFile}\n')
-        if trajFile:
-            f.write(f'trajFile :: {os.path.abspath(trajFile)}\n')
-            f.write(f'nTraj :: {self.nTraj.get()}\n')
+            for mol in self.inputSetOfMols.get():
+                molFile = mol.getPoseFile()
+                molFile = os.path.join(self.getLigandFileDir(), getBaseName(molFile) + '.sdf')
+                sStep = self._insertFunctionStep(self.solvateStep, molFile, prerequisites=[cStep])
+                simSteps.append(self._insertFunctionStep(self.simulateStep, molFile, prerequisites=[sStep]))
         else:
-            f.write(f'addMin :: {self.addMinimization.get()}\n')
-            if self.addMinimization.get():
-              f.write(f'minimTol :: {self.minimTol.get()}\n')
-              f.write(f'maxIter :: {self.maxIter.get()}\n')
+            simSteps.append(self._insertFunctionStep(self.simulateStep))
+        self._insertFunctionStep(self.createOutputStep, prerequisites=simSteps)
 
-        f.write(f'mFF :: {self.getSystemFF()}\n')
+    def convertInputStep(self):
+        sdfFiles = []
+        for mol in self.inputSetOfMols.get():
+            molFile = mol.getPoseFile()
+            sdfFiles.append(convertToSdf(self, molFile))
 
-        integrator = self.getEnumText('integrator')
-        f.write(f'integrator :: {integrator}\n')
-        if self.integrator.get() not in [0, 5]:
-            f.write(f'temperature :: {self.temperature.get()}\n')
+        paramFile = self.writePrepParamsFile(sdfFiles)
+        pwchemPlugin.runScript(self, scriptLigPrepName, paramFile, env=RDKIT_DIC, cwd=self._getPath())
 
-        if self.integrator.get() not in [5, 6]:
-            f.write(f'stepSize :: {self.stepSize.get()}\n')
+    def solvateStep(self, molFile):
+        if not os.path.exists(molFile):
+            convFile = self._getTmpPath(getBaseName(molFile) + '.sdf')
+            if os.path.exists(convFile):
+                os.rename(convFile, molFile)
+            else:
+                print(f'Molecule {getBaseName(molFile)} could not be managed')
 
-        if self.integrator.get() not in [0, 3, 5]:
-            f.write(f'fricCoef :: {self.fricCoef.get()}\n')
+        if os.path.exists(molFile):
+            recFile = self.getReceptorPDB()
+            molBase = getBaseName(molFile)
+            oDir = self._getExtraPath(molBase)
+            os.mkdir(oDir)
 
-      Plugin.runScript(self, 'openmmInteractionEnergy.py', args=self.getParamsFile(), env=OPENMM_DIC,
-                             cwd=self._getPath())
+            paramsFile = self.getSolvateParamsFile(oDir)
+            with open(paramsFile, 'w') as f:
+                f.write(f'receptorFile :: {recFile}\n')
+                f.write(f'ligandFile :: {molFile}\n')
+                f.write(f'ligandFF :: {self.getLigandFFVersion()}\n')
+
+                mFF, wFF = self.getFFFiles()
+                f.write(f'mFF :: {mFF}\nwFF :: {wFF}\n')
+                f.write(f'nonbondedMethod :: {self.getEnumText("nonbondedMethod")}\n')
+                f.write(f'nonbondedCutoff :: {self.nonbondedCutoff.get()}\n')
+                f.write(f'constraints :: {self.getEnumText("constraints")}\n')
+
+                wModel = self.getWaterModel(wFF)
+                f.write(f'wModel :: {wModel}\n')
+
+                f.write(f'addH :: {self.addH.get()}\n')
+                if self.addH.get():
+                  f.write(f'hPH :: {self.hPH.get()}\n')
+
+                if self.sizeType.get() == 0:
+                  f.write(f'boxSize :: {self.distA.get()}, {self.distB.get()}, {self.distC.get()}\n')
+                else:
+                  f.write(f'padDist :: {self.padDist.get()}\n')
+
+                f.write(f'saltConc :: {self.saltConc.get()}\n')
+                f.write(f'neutralize :: {self.neutralize.get()}\n')
+                f.write(f'cationType :: {self.getEnumText("cationType")}\n')
+                f.write(f'anionType :: {self.getEnumText("anionType")}\n')
+
+            Plugin.runScript(self, 'openmmPrepareSystem.py', args=paramsFile, env=OPENMM_DIC, cwd=oDir)
+
+
+    def simulateStep(self, molFile=None):
+        if not molFile or os.path.exists(molFile):
+            if molFile:
+                molBase, sysName = getBaseName(molFile), self.getSystemName()
+                oDir = self._getExtraPath(molBase)
+            else:
+                oDir = self._getPath()
+
+            sysFile, structFile = self.getSystemFile(molFile), self.getStructureFile(molFile)
+            trajFile = self.getSystemTrajFile()
+
+            paramsFile = self.getInteractionParamsFile(oDir)
+            with open(paramsFile, 'w') as f:
+              f.write(f'systemFile :: {sysFile}\n')
+              f.write(f'structureFile :: {structFile}\n')
+              if trajFile:
+                  f.write(f'trajFile :: {os.path.abspath(trajFile)}\n')
+              else:
+                  f.write(f'addMin :: {self.addMinimization.get()}\n')
+                  if self.addMinimization.get():
+                    f.write(f'minimTol :: {self.minimTol.get()}\n')
+                    f.write(f'maxIter :: {self.maxIter.get()}\n')
+
+              f.write(f'mFF :: {self.getSystemFF()}\n')
+
+              integrator = self.getEnumText('integrator')
+              f.write(f'integrator :: {integrator}\n')
+              if self.integrator.get() not in [0, 5]:
+                  f.write(f'temperature :: {self.temperature.get()}\n')
+
+              if self.integrator.get() not in [5, 6]:
+                  f.write(f'stepSize :: {self.stepSize.get()}\n')
+
+              if self.integrator.get() not in [0, 3, 5]:
+                  f.write(f'fricCoef :: {self.fricCoef.get()}\n')
+
+            Plugin.runScript(self, 'openmmInteractionEnergy.py', args=paramsFile, env=OPENMM_DIC, cwd=oDir)
+
+        else:
+            pass
+            # print(f'MolFile: {molFile} could not be converted in sdf')
 
     def createOutputStep(self):
-      outSystem = self.inputSystem.get().clone()
-      if not outSystem.hasTrajectory() and self.addMinimization.get():
-        outSystem.setFileName(self._getPath(f'{self.getSystemName()}.pdb'))
-      elif outSystem.hasTrajectory():
-          repFile = outSystem.getReportFile()
+        if self.inputFrom.get() == SYSTEM:
+            outSystem = self.inputSystem.get().clone()
+            if not outSystem.hasTrajectory() and self.addMinimization.get():
+              outSystem.setFileName(self._getPath(f'{self.getSystemName()}.pdb'))
+            elif outSystem.hasTrajectory():
+                repFile = outSystem.getReportFile()
 
-          data = np.loadtxt(repFile, delimiter=',')
-          cEs, ljEs = self.parseEnergies(self.getOutputFile())
-          cEs, ljEs = np.array(cEs).reshape(-1, 1), np.array(ljEs).reshape(-1, 1)
-          data = np.hstack((data, cEs, ljEs))
+                data = np.loadtxt(repFile, delimiter=',', ndmin=2)
+                cEs, ljEs = self.parseEnergies(self.getOutputFile())
+                cEs, ljEs = np.array(cEs).reshape(-1, 1), np.array(ljEs).reshape(-1, 1)
+                data = np.hstack((data, cEs, ljEs))
 
-          newRepFile = self._getPath('md_log.txt')
-          headerStr = self.getHeaderStr(repFile) + f',"Coulomb Energy (KJ/mol)","LJ Energy (KJ/mol)"'
-          np.savetxt(newRepFile, data, delimiter=",", comments="", fmt="%f", header=headerStr)
-          outSystem.setReportFile(newRepFile)
+                newRepFile = self._getPath('md_log.txt')
+                headerStr = self.getHeaderStr(repFile) + \
+                            f',"Interaction Coulomb Energy (KJ/mol)","Interaction LJ Energy (KJ/mol)"'
+                np.savetxt(newRepFile, data, delimiter=",", comments="", fmt="%f", header=headerStr)
+                outSystem.setReportFile(newRepFile)
 
-      self._defineOutputs(outputSystem=outSystem)
+            self._defineOutputs(outputSystem=outSystem)
+
+        else:
+            inMols = self.inputSetOfMols.get()
+            outputSet = inMols.createCopy(self._getPath(), copyInfo=True)
+            for mol in inMols:
+                molBase = getBaseName(mol.getPoseFile())
+                outFile = self.getOutputFile(molBase)
+                if os.path.exists(outFile):
+                    cEs, ljEs = self.parseEnergies(outFile)
+                    mol.coulomb_Interaction = pwobj.Float(cEs[0])
+                    mol.lj_Interaction = pwobj.Float(ljEs[0])
+                else:
+                    mol.coulomb_Interaction = pwobj.Float(None)
+                    mol.lj_Interaction = pwobj.Float(None)
+
+                outputSet.append(mol)
+            self._defineOutputs(outputSmallMolecules=outputSet)
+
 
 ####################### UTILS FUNCTIONS ############################
 
@@ -159,23 +284,50 @@ class ProtOpenMMInteractionEnergy(EMProtocol):
         ljEnergies = [float(energy) for energy in f.readline().split(':')[1].split()]
       return coulombEnergies, ljEnergies
 
-    def getParamsFile(self):
-      return os.path.abspath(self._getExtraPath('simulationParams.txt'))
+    def getSolvateParamsFile(self, oDir):
+      paramsFile = os.path.abspath(os.path.join(oDir, 'solvationParams.txt'))
+      return paramsFile
 
-    def getStructureFile(self):
-      return os.path.abspath(self.inputSystem.get().getFileName())
+    def getInteractionParamsFile(self, oDir):
+      paramsFile = os.path.abspath(os.path.join(oDir, 'interactionParams.txt'))
+      return paramsFile
 
-    def getSystemFile(self):
-      return os.path.abspath(self.inputSystem.get().getSerieFile())
+    def getStructureFile(self, molFile=None):
+      if not molFile:
+          sysFile = os.path.abspath(self.inputSystem.get().getFileName())
+      else:
+          molBase = getBaseName(molFile)
+          sysFile = os.path.abspath(self._getExtraPath(f'{molBase}/{self.getSystemName()}_system.pdb'))
+      return sysFile
+
+    def getSystemFile(self, molFile=None):
+      if not molFile:
+          sysFile = os.path.abspath(self.inputSystem.get().getSerieFile())
+      else:
+          molBase = getBaseName(molFile)
+          sysFile = os.path.abspath(self._getExtraPath(f'{molBase}/{self.getSystemName()}_system.xml'))
+      return sysFile
 
     def getSystemName(self):
-      return self.inputSystem.get().getSystemName()
+      if self.inputFrom.get() == SYSTEM:
+        sysName = self.inputSystem.get().getSystemName()
+      else:
+        sysName = getBaseName(self.getReceptorFilename())
+      return sysName
 
     def getSystemTrajFile(self):
-      return self.inputSystem.get().getTrajectoryFile()
+      if self.inputFrom.get() == SYSTEM:
+          trajFile = self.inputSystem.get().getTrajectoryFile()
+      else:
+          trajFile = None
+      return trajFile
 
     def getSystemFF(self):
-      return self.inputSystem.get().getForceField()
+      if self.inputFrom.get() == SYSTEM:
+          mFF = self.inputSystem.get().getForceField()
+      else:
+          mFF, _ = self.getFFFiles()
+      return mFF
 
     def getHeaderStr(self, repFile):
       with open(repFile) as f:
@@ -195,8 +347,12 @@ class ProtOpenMMInteractionEnergy(EMProtocol):
                   f'Average LJ energy:\t\t{avg_lj:.4f} ± {std_lj:.4f} kJ/mol"\n'
       return energyStr
 
-    def getOutputFile(self):
-      return self._getPath('energy_results.tsv')
+    def getOutputFile(self, molBase=None):
+      if not molBase:
+          outFile = self._getPath('energy_results.tsv')
+      else:
+          outFile = self._getExtraPath(os.path.join(molBase, 'energy_results.tsv'))
+      return outFile
 
     def _summary(self):
       s = []
@@ -204,3 +360,17 @@ class ProtOpenMMInteractionEnergy(EMProtocol):
       if os.path.exists(resFile):
           s = self.getSummaryStr(*self.parseEnergies(resFile))
       return s
+
+    def _warnings(self):
+      ws = []
+      if self.inputFrom.get() == MOLSET and len(self.inputSetOfMols.get()) > 50:
+          ws.append(f'This evaluation needs to solvate and simulate the molecules, which is computationally expensive.'
+                    f'Do you really want to run the protocol over your {len(self.inputSetOfMols.get())} molecules?')
+      return ws
+
+
+    def _validate(self):
+      vs = []
+      if self.inputFrom.get() == MOLSET and not self.inputSetOfMols.get().isDocked():
+          vs.append('Molecules must be docked to a receptor to calculate their interaction energy')
+      return vs

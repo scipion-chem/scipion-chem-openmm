@@ -83,12 +83,12 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       system = self.getMDSystem()
       repFile = system.getReportFile()
 
-      data = np.loadtxt(repFile, delimiter=',')
+      data = np.loadtxt(repFile, delimiter=',', ndmin=2)
       step = data[:, 0]
 
       valIdx, valName = eval(self.repFeature.get())
       values = data[:, valIdx]
-      plt.plot(step, values)
+      plt.plot(step, values, 'o-')
       plt.title(f'"{system.getSystemName()}" trajectory "{valName}"')
       plt.xlabel("Step")
       plt.ylabel(f"{valName}")

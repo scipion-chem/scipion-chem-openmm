@@ -168,7 +168,6 @@ if __name__ == "__main__":
 	if 'trajFile' in pDic:
 			trajFile = pDic['trajFile']
 			traj = md.load(trajFile, top=pdbFile)  # MDTraj trajectory
-			nTraj = int(pDic['nTraj'])
 	elif eval(pDic['addMin']):
 			integrator = buildIntegrator(pDic)
 			simulation = Simulation(pdb.topology, system, integrator)
@@ -190,13 +189,13 @@ if __name__ == "__main__":
 	system = setSystemForces(system, ff)
 
 	if 'trajFile' in pDic:
-			frames = [t.xyz[0] for t in traj[::nTraj]]
+			frames = [t.xyz[0] for t in traj[:]]
 	else:
 			frames = [positions]
 
 	coEs, ljEs = [], []
 	for i, positions in enumerate(frames):  # Subsample frames
-		if (i+1) % (len(frames)//10) == 0:
+		if len(frames) > 10 and (i+1) % (len(frames)//10) == 0:
 			print(f'Iteration: {i+1}/{len(frames)}')
 			sys.stdout.flush()
 		integrator = buildIntegrator(pDic)
