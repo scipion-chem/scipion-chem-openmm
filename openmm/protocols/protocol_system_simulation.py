@@ -167,13 +167,14 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
     def createOutputStep(self):
       systemName = self.getSystemName()
-      oriStructFile, systemFile = self.getStructureFile(), self.getSystemFile()
-      outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
+      oriStructFile, systemFile = self.inputSystem.get().getFileName(), self.getSystemFile()
+      outTopFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
+      outCifFile = self._getPath(f'{systemName}.cif')
 
       mFF, wFF = self.getFFFiles()
       nFrames = self.nSteps.get() // self.nTraj.get()
       nTime = nFrames * self.stepSize.get()
-      outSystem = OpenMMSystem(filename=outPdbFile, serieFile=systemFile,
+      outSystem = OpenMMSystem(filename=outTopFile, serieFile=systemFile, cifFile=outCifFile,
                                repFile=self._getPath('md_log.txt'),
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
       outSystem.setOriStructFile(oriStructFile)
@@ -211,7 +212,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       return os.path.abspath(self._getExtraPath('simulationParams.txt'))
 
     def getStructureFile(self):
-      return os.path.abspath(self.inputSystem.get().getFileName())
+      return os.path.abspath(self.inputSystem.get().getCifFile())
 
     def getSystemFile(self):
       return os.path.abspath(self.inputSystem.get().getSerieFile())

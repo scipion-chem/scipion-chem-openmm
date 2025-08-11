@@ -159,15 +159,17 @@ def saveEnergies(coulombEnergies, ljEnergies):
 
 if __name__ == "__main__":
 	pDic = parseParams(sys.argv[1], sep='::')
-	sysFile, pdbFile = pDic['systemFile'], pDic['structureFile']
+	sysFile, recFile = pDic['systemFile'], pDic['structureFile']
 	sysName = os.path.splitext(os.path.basename(sysFile))[0]
-	pdb = PDBFile(pdbFile)
+	
+	parser = PDBFile if recFile.endswith('.pdb') else PDBxFile
+	pdb = parser(recFile)
 	with open(sysFile) as input:
 		system = XmlSerializer.deserialize(input.read())
 
 	if 'trajFile' in pDic:
 			trajFile = pDic['trajFile']
-			traj = md.load(trajFile, top=pdbFile)  # MDTraj trajectory
+			traj = md.load(trajFile, top=recFile)  # MDTraj trajectory
 	elif eval(pDic['addMin']):
 			integrator = buildIntegrator(pDic)
 			simulation = Simulation(pdb.topology, system, integrator)
@@ -177,6 +179,7 @@ if __name__ == "__main__":
 																maxIterations=int(pDic['maxIter']))
 			positions = simulation.context.getState(getPositions=True).getPositions()
 			PDBFile.writeFile(simulation.topology, positions, open(f'{sysName}.pdb', 'w'))
+			PDBxFile.writeFile(simulation.topology, positions, open(f'{sysName}.cif', 'w'))
 	else:
 			positions = pdb.positions
 

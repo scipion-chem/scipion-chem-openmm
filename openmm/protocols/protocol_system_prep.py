@@ -233,12 +233,14 @@ class ProtOpenMMSystemPrep(EMProtocol):
 
     def createOutputStep(self):
       systemBasename = self.getSystemName()
-      outStructFile, outSystemFile = self._getPath(f'{systemBasename}_system.pdb'), \
-                                     self._getPath(f'{systemBasename}_system.xml')
+      outStructFile = self._getPath(f'{systemBasename}_system.pdb')
+      outCifFile = self._getPath(f'{systemBasename}_system.cif')
+      outSystemFile = self._getPath(f'{systemBasename}_system.xml')
 
       ligName = self.inputLigand.get() if self.inputFrom.get() == LIGAND else None
       mFF, wFF = self.getFFFiles()
-      outSystem = OpenMMSystem(filename=outStructFile, oriStructFile=outStructFile, serieFile=outSystemFile,
+      outSystem = OpenMMSystem(filename=outStructFile, oriStructFile=outStructFile,
+                               cifFile=outCifFile, serieFile=outSystemFile,
                                ff=mFF, wff=wFF, ligName=ligName)
 
       self._defineOutputs(outputSystem=outSystem)

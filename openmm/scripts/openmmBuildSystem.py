@@ -36,7 +36,9 @@ if __name__ == "__main__":
     pDic = parseParams(sys.argv[1], sep='::')
     sysName = os.path.splitext(os.path.basename(pDic['receptorFile']))[0]
 
-    pdb = PDBFile(pDic['receptorFile'])
+    recFile = pDic['receptorFile']
+    parser = PDBFile if recFile.endswith('.pdb') else PDBxFile
+    pdb = parser(recFile)
     forcefield = ForceField(pDic['mFF'], pDic['wFF'])
 
     ligFile = pDic['ligandFile'] if 'ligandFile' in pDic else None

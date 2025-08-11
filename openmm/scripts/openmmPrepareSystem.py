@@ -50,8 +50,10 @@ def addLigand(modeller, ligFile):
 if __name__ == "__main__":
     pDic = parseParams(sys.argv[1], sep='::')
     sysName = os.path.splitext(os.path.basename(pDic['receptorFile']))[0]
-
-    pdb = PDBFile(pDic['receptorFile'])
+    
+    recFile = pDic['receptorFile']
+    parser = PDBFile if recFile.endswith('.pdb') else PDBxFile
+    pdb = parser(recFile)
     forcefield = ForceField(pDic['mFF'], pDic['wFF'])
 
     modeller = Modeller(pdb.topology, pdb.positions)
@@ -76,8 +78,8 @@ if __name__ == "__main__":
     modeller.addSolvent(forcefield, model=pDic['wModel'], **kwargs)
 
     # Save PDB for visualization
-    PDBFile.writeFile(modeller.topology, modeller.positions,
-                      open(f'{sysName}_system.pdb', 'w'))
+    PDBFile.writeFile(modeller.topology, modeller.positions, open(f'{sysName}_system.pdb', 'w'))
+    PDBxFile.writeFile(modeller.topology, modeller.positions, open(f'{sysName}_system.cif', 'w'))
 
     sysKwargs = {"nonbondedMethod": eval(pDic['nonbondedMethod'])}
     sysKwargs.update({"nonbondedCutoff": float(pDic['nonbondedCutoff']) * nanometer})

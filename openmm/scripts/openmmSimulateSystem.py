@@ -30,7 +30,7 @@ import sys
 
 # Openmm imports
 from openmm.app import PDBFile, ForceField, Simulation, StateDataReporter,\
-	DCDReporter, NoCutoff, HBonds
+	DCDReporter, NoCutoff, HBonds, PDBxFile
 from openmm import *
 from openmm.unit import *
 
@@ -38,8 +38,10 @@ from utils import parseParams
 
 if __name__ == "__main__":
 	pDic = parseParams(sys.argv[1], sep='::')
-	sysFile, pdbFile = pDic['systemFile'], pDic['structureFile']
-	pdb = PDBFile(pdbFile)
+	sysFile, recFile = pDic['systemFile'], pDic['structureFile']
+	
+	parser = PDBFile if recFile.endswith('.pdb') else PDBxFile
+	pdb = parser(recFile)
 	with open(sysFile) as input:
 		system = XmlSerializer.deserialize(input.read())
 
@@ -91,3 +93,4 @@ if __name__ == "__main__":
 
 	positions = simulation.context.getState(getPositions=True).getPositions()
 	PDBFile.writeFile(simulation.topology, positions, open(f'{sysName}.pdb', 'w'))
+	PDBxFile.writeFile(simulation.topology, positions, open(f'{sysName}.cif', 'w'))

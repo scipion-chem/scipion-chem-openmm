@@ -188,7 +188,8 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep, ProtOpenMMSystemSimulati
         if self.inputFrom.get() == SYSTEM:
             outSystem = self.inputSystem.get().clone()
             if not outSystem.hasTrajectory() and self.addMinimization.get():
-              outSystem.setFileName(self._getPath(f'{self.getSystemName()}.pdb'))
+                outSystem.setFileName(self._getPath(f'{self.getSystemName()}.pdb'))
+                outSystem.setCifFile(self._getPath(f'{self.getSystemName()}.cif'))
             elif outSystem.hasTrajectory():
                 repFile = outSystem.getReportFile()
 
@@ -241,10 +242,10 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep, ProtOpenMMSystemSimulati
 
     def getStructureFile(self, molFile=None):
       if not molFile:
-          sysFile = os.path.abspath(self.inputSystem.get().getFileName())
+          sysFile = os.path.abspath(self.inputSystem.get().getCifFile())
       else:
           molBase = getBaseName(molFile)
-          sysFile = os.path.abspath(self._getExtraPath(f'{molBase}/{self.getSystemName()}_system.pdb'))
+          sysFile = os.path.abspath(self._getExtraPath(f'{molBase}/{self.getSystemName()}_system.cif'))
       return sysFile
 
     def getSystemFile(self, molFile=None):
