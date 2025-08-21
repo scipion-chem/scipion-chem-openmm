@@ -170,7 +170,6 @@ class ProtOpenDuckSimulation(EMProtocol):
       nFrames = self.nSteps.get() // self.nTraj.get()
       outSystem = OpenMMSystem(filename=outPDB, serieFile=systemFile,
                                ff=mFF, wff=wFF)
-      outSystem.setOriStructFile(outPDB)
       outSystem.setTrajectoryFile(outDCD)
 
       self._defineOutputs(outputSystem=outSystem)
