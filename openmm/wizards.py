@@ -33,12 +33,8 @@ to select the radius of the sphere that contains the protein or a desired zone.
 from pwchem.wizards import SelectMultiChainWizard, SelectElementWizard, \
   SelectChainWizardQT, SelectResidueWizardQT, SelectAtomWizardQT
 
-from openmm.protocols import ProtOpenMMReceptorPrep, ProtOpenMMSystemPrep, ProtOpenDuckSimulation
-
-SelectMultiChainWizard().addTarget(protocol=ProtOpenMMReceptorPrep,
-                                   targets=['chain_name'],
-                                   inputs=['inputAtomStruct'],
-                                   outputs=['chain_name'])
+from openmm.protocols import ProtOpenMMSystemPrep, ProtOpenDuckSimulation
+from openmm.viewers import OpenMMSystemPViewer
 
 SelectElementWizard().addTarget(protocol=ProtOpenMMSystemPrep,
                                targets=['inputLigand'],
@@ -64,3 +60,8 @@ SelectAtomWizardQT().addTarget(protocol=ProtOpenDuckSimulation,
                                targets=['intAtom'],
                                inputs=['inputSetOfMols', 'intChain', 'intResidue'],
                                outputs=['intAtom'])
+
+SelectElementWizard().addTarget(protocol=OpenMMSystemPViewer,
+                                targets=['repFeature'],
+                                inputs=['getMDFeatures'],
+                                outputs=['repFeature'])

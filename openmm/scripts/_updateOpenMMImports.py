@@ -7,18 +7,19 @@ args:
 import sys, os
 
 endDir = 'duck/steps'
-REPLACE_DIC = {f'{endDir}/equlibrate.py': ['Platform_getPlatformByName', 'Platform.getPlatformByName'],
-               f'{endDir}/normal_md.py': ['Platform_getPlatformByName', 'Platform.getPlatformByName'],
-               f'{endDir}/steered_md.py': ['Platform_getPlatformByName', 'Platform.getPlatformByName'], }
+OLD_STR, NEWSTR = 'Platform_getPlatformByName', 'Platform.getPlatformByName'
+REPLACE_DIC = {f'{endDir}/equlibrate.py': [OLD_STR, NEWSTR],
+               f'{endDir}/normal_md.py': [OLD_STR, NEWSTR],
+               f'{endDir}/steered_md.py': [OLD_STR, NEWSTR], }
 
 
-def findFullPath(root_dir, target_suffix):
-  for dirpath, dirnames, filenames in os.walk(root_dir):
+def findFullPath(rootDir, targetSuffix):
+  for dirpath, dirnames, filenames in os.walk(rootDir):
     if 'openduck' in dirpath:
       for filename in filenames:
-        full_file_path = os.path.join(dirpath, filename)
-        if full_file_path.endswith(target_suffix):
-          return os.path.abspath(full_file_path)
+        fullFilePath = os.path.join(dirpath, filename)
+        if fullFilePath.endswith(targetSuffix):
+          return os.path.abspath(fullFilePath)
   return None
 
 def replaceInFile(file, inStr, outStr):
@@ -35,3 +36,4 @@ if __name__ == "__main__":
   for suffixPath, reps in REPLACE_DIC.items():
     scriptPath = findFullPath(rootDir, suffixPath)
     replaceInFile(scriptPath, reps[0], reps[1])
+    

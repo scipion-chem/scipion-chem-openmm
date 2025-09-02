@@ -53,3 +53,22 @@ def writeMol(mol, outFile, cid=-1, setName=False):
 
 def getBaseName(file):
   return os.path.splitext(os.path.basename(file.strip()))[0]
+
+def getGenerator(ligFF):
+  from openmmforcefields.generators import EspalomaTemplateGenerator, GAFFTemplateGenerator, SMIRNOFFTemplateGenerator
+  if 'espaloma' in ligFF.lower():
+    gen = EspalomaTemplateGenerator
+  elif 'gaff' in ligFF.lower():
+    gen = GAFFTemplateGenerator
+  elif 'smirnoff' in ligFF.lower() or 'openff' in ligFF.lower():
+    gen = SMIRNOFFTemplateGenerator
+  return gen
+
+def addMoleculesFF(forcefield, ligFile, ligFF):
+  '''Update forcefiled with Espaloma parameters for ligand'''
+  from openff.toolkit.topology import Molecule
+  molecule = Molecule.from_file(ligFile)
+  generator = getGenerator(ligFF)
+  tempGenerator = generator(molecules=molecule, forcefield=ligFF, cache="molecules_ff.json")
+  forcefield.registerTemplateGenerator(tempGenerator.generator)
+  return forcefield

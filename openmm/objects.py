@@ -40,6 +40,7 @@ class OpenMMSystem(MDSystem):
   def __init__(self, filename=None, **kwargs):
     super().__init__(filename=filename, **kwargs)
     self._serieFile = pwobj.String(kwargs.get('serieFile', None))
+    self._cifFile = pwobj.String(kwargs.get('cifFile', None))
     self._repFile = pwobj.String(kwargs.get('repFile', None))
 
     self._nFrames = pwobj.Integer(kwargs.get('nFrames', None))
@@ -63,6 +64,13 @@ class OpenMMSystem(MDSystem):
 
   def setSerieFile(self, value):
     self._serieFile.set(value)
+
+  # we keep storing the PDB in struct file for visualizations but analysis in big systems need the CIF
+  def getCifFile(self):
+    return self._cifFile.get()
+
+  def setCifFile(self, value):
+    self._cifFile.set(value)
 
   def getLigandID(self):
     return 'LIG'

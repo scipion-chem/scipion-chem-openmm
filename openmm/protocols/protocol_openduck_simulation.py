@@ -215,10 +215,8 @@ drug discovery workflows.
       mFF, wFF = self.getFFFiles()
 
       nFrames = self.nSteps.get() // self.nTraj.get()
-      nTime = nFrames * self.stepSize.get()
       outSystem = OpenMMSystem(filename=outPDB, serieFile=systemFile,
                                ff=mFF, wff=wFF)
-      outSystem.setOriStructFile(outPDB)
       outSystem.setTrajectoryFile(outDCD)
 
       self._defineOutputs(outputSystem=outSystem)
@@ -348,9 +346,9 @@ drug discovery workflows.
             f.write(f'ligandFF :: {self.getEnumText("smallFF").lower()}\n')
 
             # Parameters used by OpenDuck
-            f.write(f'nonbondedMethod :: PME\n')
-            f.write(f'nonbondedCutoff :: 0.9\n')
-            f.write(f'constraints :: HBonds\n')
+            f.write('nonbondedMethod :: PME\n')
+            f.write('nonbondedCutoff :: 0.9\n')
+            f.write('constraints :: HBonds\n')
 
         return paramsFile
 

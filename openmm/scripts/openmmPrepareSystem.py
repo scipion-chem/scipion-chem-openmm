@@ -1,10 +1,10 @@
 #Unidad de  Bioinformatica of Centro Nacional de Biotecnologia , CSIC
 # # -*- coding: utf-8 -*-
-# # # **************************************************************************
-# # # *
-# # # * Authors: Daniel Del Hoyo Gómez (ddelhoyo@cnb.csic.es)
-# # # *
-# # # *
+# # **************************************************************************
+# # *
+# # * Authors: Daniel Del Hoyo Gómez (ddelhoyo@cnb.csic.es)
+# # *
+# # *
 # * This program is free software; you can redistribute it and/or modify
 # * it under the terms of the GNU General Public License as published by
 # * the Free Software Foundation; either version 2 of the License, or
@@ -25,24 +25,14 @@
 # *
 # **************************************************************************
 
-import sys, os
+import sys
 from openmm.app import *
 from openmm import *
 from openmm.unit import *
 
 from openff.toolkit.topology import Molecule
-from openmmforcefields.generators import EspalomaTemplateGenerator, GAFFTemplateGenerator, SMIRNOFFTemplateGenerator
 
-from utils import parseParams
-
-def getGenerator(ligFF):
-  if 'espaloma' in ligFF.lower():
-    gen = EspalomaTemplateGenerator
-  elif 'gaff' in ligFF.lower():
-    gen = GAFFTemplateGenerator
-  elif 'smirnoff' in ligFF.lower() or 'openff' in ligFF.lower():
-    gen = SMIRNOFFTemplateGenerator
-  return gen
+from utils import parseParams, addMoleculesFF
 
 def addLigand(modeller, ligFile):
   '''Update modeller object of receptor with the ligand topology and positions'''
@@ -57,20 +47,13 @@ def addLigand(modeller, ligFile):
   modeller.add(ligTop, ligPos)
   return modeller
 
-def addMoleculesFF(forcefield, ligFile, ligFF):
-  '''Update forcefiled with Espaloma parameters for ligand'''
-  molecule = Molecule.from_file(ligFile)
-  generator = getGenerator(ligFF)
-  tempGenerator = generator(molecules=molecule, forcefield=ligFF, cache="molecules_ff.json")
-  forcefield.registerTemplateGenerator(tempGenerator.generator)
-  return forcefield
-
-
 if __name__ == "__main__":
     pDic = parseParams(sys.argv[1], sep='::')
     sysName = os.path.splitext(os.path.basename(pDic['receptorFile']))[0]
-
-    pdb = PDBFile(pDic['receptorFile'])
+    
+    recFile = pDic['receptorFile']
+    parser = PDBFile if recFile.endswith('.pdb') else PDBxFile
+    pdb = parser(recFile)
     forcefield = ForceField(pDic['mFF'], pDic['wFF'])
 
     modeller = Modeller(pdb.topology, pdb.positions)
@@ -95,8 +78,8 @@ if __name__ == "__main__":
     modeller.addSolvent(forcefield, model=pDic['wModel'], **kwargs)
 
     # Save PDB for visualization
-    PDBFile.writeFile(modeller.topology, modeller.positions,
-                      open(f'{sysName}_system.pdb', 'w'))
+    PDBFile.writeFile(modeller.topology, modeller.positions, open(f'{sysName}_system.pdb', 'w'))
+    PDBxFile.writeFile(modeller.topology, modeller.positions, open(f'{sysName}_system.cif', 'w'))
 
     sysKwargs = {"nonbondedMethod": eval(pDic['nonbondedMethod'])}
     sysKwargs.update({"nonbondedCutoff": float(pDic['nonbondedCutoff']) * nanometer})
