@@ -35,6 +35,8 @@ from pyworkflow.protocol import params
 from pyworkflow.utils import Message
 from pwem.protocols import EMProtocol
 
+from pwchem import Plugin as pwchemPlugin
+
 from .. import Plugin
 from ..constants import OPENMM_DIC
 from ..objects import OpenMMSystem
@@ -45,6 +47,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
     This protocol will start a Molecular Dynamics simulation.
     """
     _label = 'system simulation'
+    # todo: set nThreads for the OPENMMDL cpus
 
 
     # -------------------------- DEFINE param functions ----------------------
@@ -112,6 +115,8 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         tGroup = form.addGroup('Trajectory')
         tGroup.addParam('nTraj', params.IntParam, default=100, label="Steps interval: ",
                         help='Save the state of the system each x steps for the trajectory')
+        tGroup.addParam('useOpenmmdl', params.BooleanParam, default=True, label="Analyze trajectory with OpenMMDL: ",
+                        help='Whether to analyze the trajectory with OpenMMDL')
 
         mGroup = form.addGroup('Minimization')
         self._defineMinimization(mGroup)
@@ -124,8 +129,10 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
 
     def _insertAllSteps(self):
-      self._insertFunctionStep('simulateStep')
-      self._insertFunctionStep('createOutputStep')
+      self._insertFunctionStep(self.simulateStep)
+      if self.useOpenmmdl.get() and self.inputSystem.get().getLigTopologyFile():
+        self._insertFunctionStep(self.analyzeStep)
+      self._insertFunctionStep(self.createOutputStep)
 
 
     def simulateStep(self):
@@ -164,6 +171,22 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       Plugin.runScript(self, 'openmmSimulateSystem.py', args=self.getParamsFile(), env=OPENMM_DIC,
                              cwd=self._getPath())
 
+    def getNFrames(self):
+      nFrames = self.nSteps.get() // self.nTraj.get()
+      return nFrames
+
+    def analyzeStep(self):
+        '''Run OpenMMDL analysis'''
+        oDir = self._getExtraPath('OpenMMDL')
+        if not os.path.exists(oDir):
+          os.mkdir(oDir)
+        systemName = self.getSystemName()
+        outTopFile, outDcdFile = os.path.abspath(self._getPath(f'{systemName}.pdb')), \
+                                 os.path.abspath(self._getPath(f'{systemName}.dcd'))
+
+        args = f'-t {outTopFile} -d {outDcdFile} -n LIG'
+        pwchemPlugin.runCondaCommand(self, args, OPENMM_DIC, 'openmmdl_analysis', cwd=oDir)
+
 
     def createOutputStep(self):
       systemName = self.getSystemName()
@@ -172,12 +195,20 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       outCifFile = self._getPath(f'{systemName}.cif')
 
       mFF, wFF = self.getFFFiles()
-      nFrames = self.nSteps.get() // self.nTraj.get()
+      nFrames = self.getNFrames()
       nTime = nFrames * self.stepSize.get()
       outSystem = OpenMMSystem(filename=outTopFile, serieFile=systemFile, cifFile=outCifFile,
                                repFile=self._getPath('md_log.txt'),
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
       outSystem.setTrajectoryFile(outDcdFile)
+
+      ligFile = self.inputSystem.get().getLigTopologyFile()
+      if ligFile:
+        outSystem.setLigTopologyFile(ligFile)
+
+      anaDir = self._getExtraPath('OpenMMDL')
+      if os.path.exists(anaDir):
+        outSystem.setOpenmmdlDir(anaDir)
 
       self._defineOutputs(outputSystem=outSystem)
 

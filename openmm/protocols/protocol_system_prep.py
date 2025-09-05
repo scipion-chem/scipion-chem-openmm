@@ -237,10 +237,12 @@ class ProtOpenMMSystemPrep(EMProtocol):
       outCifFile = self._getPath(f'{systemBasename}_system.cif')
       outSystemFile = self._getPath(f'{systemBasename}_system.xml')
 
-      ligName = self.inputLigand.get() if self.inputFrom.get() == LIGAND else None
       mFF, wFF = self.getFFFiles()
       outSystem = OpenMMSystem(filename=outStructFile, cifFile=outCifFile, serieFile=outSystemFile,
-                               ff=mFF, wff=wFF, ligName=ligName)
+                               ff=mFF, wff=wFF)
+      if self.inputFrom.get() == LIGAND:
+        molFile = os.path.relpath(self.getSpecifiedMolFile())
+        outSystem.setLigTopologyFile(molFile)
 
       self._defineOutputs(outputSystem=outSystem)
       # self._defineSourceRelation(self.inputStructure, outSystem)
