@@ -82,6 +82,7 @@ def parseLigandLine(sline, outDic, nFrames):
     return outDic
 
 def parseInteractionsLine(sline, outDic, nFrames):
+    frame = int(sline[12])
     intType = sline[13]
 
     resNr, resType, resChain = sline[1:4]
@@ -100,18 +101,19 @@ def parseInteractionsLine(sline, outDic, nFrames):
     else:
       ligIds = [sline[8]]
 
-    for ligId in ligIds:
-      if type(ligId) == str:
-        ligId = eval(ligId)
-      ligId = int(ligId)
+    if intType in ['pistacking', 'pication']:
+      ligIds = ['_'.join(ligIds)]
 
+    for ligId in ligIds:
       pairId = (resId, ligId)
       if pairId not in outDic:
         outDic[pairId] = {}
 
       if not intType in outDic[pairId]:
-        outDic[pairId][intType] = 1
-      outDic[pairId][intType] += 1
+        outDic[pairId][intType] = [frame]
+
+      if not frame in outDic[pairId][intType]:
+        outDic[pairId][intType].append(frame)
 
     return outDic
 
@@ -223,6 +225,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       group.addParam('displayReporter', params.LabelParam, label='Plot reporter trajectory analysis: ',
                      help='Plots a graph with the reporter feature chosen over the trajectory')
 
+      form.addSection('Receptor-ligand interactions')
       group = form.addGroup('OpenMMDL analysis')
       group.addParam('openmmdlAnalysis', params.EnumParam, label='OpenMMDL analysis: ', default=0,
                      choices=['RMSD', 'Barcodes', 'Binding Modes Markov States'],
@@ -233,7 +236,6 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       group.addParam('displayOpenMMDL', params.LabelParam, label='Display OpenMMDL analysis: ',
                      help='Show the OpenMMDL barcodes, RMSD or interaction Markov states generated')
 
-      form.addSection('Receptor-ligand interactions')
       group = form.addGroup('Receptor-ligand interactions')
       group.addParam('threshold', params.FloatParam, label='Interaction threshold: ', default=0.1,
                      help='Proportion of time through the simulation that a interaction must appear to be considered')
@@ -305,7 +307,6 @@ class OpenMMSystemPViewer(MDSystemPViewer):
     def showHeatmap(self, paramName=None):
       outLabel = 'Residue' if self.target.get() == 0 else 'Ligand'
       outDic = self.parseOpenMMDL(which=outLabel)
-      print('outDic: ', outDic)
 
       system = self.getMDSystem()
       tTime = system.getNTime()
@@ -319,7 +320,6 @@ class OpenMMSystemPViewer(MDSystemPViewer):
 
     def showInteractionsDiagram(self, paramName=None):
       outDic = self.parseOpenMMDL(which='interactions')
-      print('outDic: ', outDic)
       self.makeInteractionsPlot(outDic)
 
     ############ UTILS FUNCTIONS ##################
@@ -365,8 +365,8 @@ class OpenMMSystemPViewer(MDSystemPViewer):
 
       newDic = {}
       for pairId, intDic in outDic.items():
-        for intType, nReps in intDic.items():
-          prop = nReps / nFrames
+        for intType, frames in intDic.items():
+          prop = len(frames) / nFrames
           if prop > th:
             if not pairId in newDic:
               newDic[pairId] = {}
@@ -451,9 +451,11 @@ class OpenMMSystemPViewer(MDSystemPViewer):
 
       anaDir = system.getOpenmmdlDir()
       paramsFile = os.path.abspath(os.path.join(anaDir, 'drawInteractionsParams.txt'))
+      outFile = os.path.abspath(os.path.join(anaDir, f'{system.getSystemName()}_interactions.png'))
       with open(paramsFile, 'w') as f:
         f.write(f'molFile :: {ligTopFile}\n')
         f.write(f'intDic :: {d}\n')
+        f.write(f'outFile :: {outFile}\n')
 
       openmmPlugin.runScript(self, 'openmmDrawInteractions.py', args=paramsFile, env=RDKIT_DIC,
                              popen=True, cwd=self._getPath())
