@@ -116,7 +116,7 @@ def cleanChain(d, pair=False):
         d = {(rid[0].split(':')[1], rid[1]): v for rid, v in d.items()}
   return d
 
-def heatmap(data, rowLabels, colLabels, totalTime):
+def heatmap(data, rowLabels, colLabels, totalTime, outLabel='Residue'):
   """
   Create a heatmap interactions heatmap for residues or ligand ids
   """
@@ -161,9 +161,13 @@ def heatmap(data, rowLabels, colLabels, totalTime):
   plt.setp(ax.get_xticklabels(), rotation=-30, ha="right",
            rotation_mode="anchor")
 
+  plt.xlabel('Simulation time')
+  plt.ylabel(f"{'Atom' if outLabel == 'Ligand' else outLabel} ID")
+  plt.title(f'{outLabel} Interactions over simulation time')
+
   return im, cbar
 
-def histogram(resContacts, nFrames):
+def histogram(resContacts, nFrames, outLabel):
   # Extract residue IDs and interaction types
   residues = list(resContacts.keys())
   interactionTypes = sorted(set().union(*[set(interactions.keys()) for interactions in resContacts.values()]))
@@ -188,9 +192,9 @@ def histogram(resContacts, nFrames):
     bars.append(bar)
     bottom += np.array(values)
 
-  plt.xlabel('Residue ID')
+  plt.xlabel(f"{'Atom' if outLabel == 'Ligand' else outLabel} ID")
   plt.ylabel('Interaction Count')
-  plt.title('Residue Interaction Counts by Type')
+  plt.title(f'{outLabel} Interaction Counts by Type')
   plt.legend()
   plt.xticks(rotation=45)
   plt.tight_layout()
@@ -303,7 +307,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       outLabel = 'Residue' if self.target.get() == 0 else 'Ligand'
       outDic = self.parseOpenMMDL(which=outLabel)
 
-      self.makeHistogramPlot(outDic, self.threshold.get())
+      self.makeHistogramPlot(outDic, outLabel, self.threshold.get())
 
     def showInteractionsDiagram(self, paramName=None):
       outDic = self.parseOpenMMDL(which='interactions')
@@ -391,7 +395,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       return outDic
 
 
-    def makeHeatmapPlot(self, d, totalTime, title='', th=0.1):
+    def makeHeatmapPlot(self, d, totalTime, outLabel='', th=0.1):
       df, filtIds = [], []
       for resId, frameDic in d.items():
         newContact = []
@@ -405,13 +409,13 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       df = np.array(df)
       frames = list(range(1, len(df[0])+1))
 
-      heatmap(df, filtIds, frames, totalTime)
-      if title:
-        plt.savefig(f'{title}.png')
+      heatmap(df, filtIds, frames, totalTime, outLabel)
+      if outLabel:
+        plt.savefig(f'{outLabel}.png')
       plt.tight_layout()
       plt.show()
 
-    def makeHistogramPlot(self, d, th=0.1):
+    def makeHistogramPlot(self, d, outLabel, th=0.1):
       resContacts = {}
       for resId, frameDic in d.items():
         resDic, resCount = {}, 0
@@ -426,7 +430,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
         if resCount / len(frameDic) > th:
           resContacts[str(resId)] = resDic
 
-      histogram(resContacts, len(frameDic))
+      histogram(resContacts, len(frameDic), outLabel)
 
 
     def makeInteractionsPlot(self, d):
