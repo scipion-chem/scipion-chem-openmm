@@ -72,7 +72,7 @@ def parseLigandLine(sline, outDic, nFrames):
       ligIds = [sline[8]]
 
     for ligId in ligIds:
-      if type(ligId) == str:
+      if isinstance(ligId, str):
         ligId = eval(ligId)
       ligId = int(ligId)
       if ligId not in outDic:
@@ -109,10 +109,10 @@ def parseInteractionsLine(sline, outDic, nFrames):
       if pairId not in outDic:
         outDic[pairId] = {}
 
-      if not intType in outDic[pairId]:
+      if intType not in outDic[pairId]:
         outDic[pairId][intType] = [frame]
 
-      if not frame in outDic[pairId][intType]:
+      if frame not in outDic[pairId][intType]:
         outDic[pairId][intType].append(frame)
 
     return outDic
@@ -136,18 +136,18 @@ def heatmap(data, rowLabels, colLabels, totalTime):
 
   # Get the range of integer values
   vmin, vmax = np.min(data), np.max(data)
-  n_values = vmax - vmin + 1
+  nValues = vmax - vmin + 1
 
   # Create discrete colormap from a continuous colormap
-  continuous_cmap = plt.cm.YlGn  # or 'plasma', 'inferno', 'magma', 'coolwarm', etc.
-  discrete_cmap = ListedColormap(continuous_cmap(np.linspace(0, 1, n_values)))
+  continuousCmap = plt.cm.YlGn  # or 'plasma', 'inferno', 'magma', 'coolwarm', etc.
+  discreteCmap = ListedColormap(continuousCmap(np.linspace(0, 1, nValues)))
 
   # Create boundaries at half-integers
   bounds = np.arange(vmin - 0.5, vmax + 1.5, 1)
-  norm = BoundaryNorm(bounds, n_values)
+  norm = BoundaryNorm(bounds, nValues)
 
-  fig, ax = plt.subplots(figsize=(10, 8))
-  im = ax.imshow(data, cmap=discrete_cmap, norm=norm, interpolation='none', aspect='auto')
+  _, ax = plt.subplots(figsize=(10, 8))
+  im = ax.imshow(data, cmap=discreteCmap, norm=norm, interpolation='none', aspect='auto')
 
   # Create discrete colorbar
   cbar = plt.colorbar(im, ax=ax, ticks=np.arange(vmin, vmax + 1))
@@ -159,12 +159,12 @@ def heatmap(data, rowLabels, colLabels, totalTime):
   # Calculate time values and create 4 equally spaced y-ticks
   nFrames = len(colLabels)
   stepSize = totalTime / nFrames
-  x_tick_positions = np.linspace(0, nFrames - 1, 4)  # 4 equally spaced frame positions
-  x_tick_times = x_tick_positions * stepSize  # Convert to time
+  xTickPositions = np.linspace(0, nFrames - 1, 4)  # 4 equally spaced frame positions
+  xTickTimes = xTickPositions * stepSize  # Convert to time
 
   # Set y-ticks with time labels
-  ax.set_xticks(x_tick_positions)
-  ax.set_xticklabels([f'{time:.3f} ps' for time in x_tick_times])
+  ax.set_xticks(xTickPositions)
+  ax.set_xticklabels([f'{time:.3f} ps' for time in xTickTimes])
 
   # Let the horizontal axes labeling appear on top.
   ax.tick_params(top=True, bottom=False,
@@ -179,23 +179,23 @@ def heatmap(data, rowLabels, colLabels, totalTime):
 def histogram(resContacts, nFrames):
   # Extract residue IDs and interaction types
   residues = list(resContacts.keys())
-  interaction_types = sorted(set().union(*[set(interactions.keys()) for interactions in resContacts.values()]))
+  interactionTypes = sorted(set().union(*[set(interactions.keys()) for interactions in resContacts.values()]))
 
   # Prepare data for stacking
-  stack_data = {itype: [] for itype in interaction_types}
+  stackData = {itype: [] for itype in interactionTypes}
   for residue in residues:
-    for itype in interaction_types:
-      stack_data[itype].append(resContacts[residue].get(itype, 0))
+    for itype in interactionTypes:
+      stackData[itype].append(resContacts[residue].get(itype, 0))
 
   # Convert to numpy arrays for easier handling
   bottom = np.zeros(len(residues))
-  fig, ax = plt.subplots(figsize=(12, 8))
+  _, ax = plt.subplots(figsize=(12, 8))
 
   # Create stacked bars
-  colors = plt.cm.Set1(np.linspace(0, 1, len(interaction_types)))
+  colors = plt.cm.Set1(np.linspace(0, 1, len(interactionTypes)))
   bars = []
 
-  for i, (itype, values) in enumerate(stack_data.items()):
+  for i, (itype, values) in enumerate(stackData.items()):
     values = [v / nFrames for v in values]
     bar = ax.bar(residues, values, bottom=bottom, label=itype, color=colors[i])
     bars.append(bar)
@@ -368,7 +368,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
         for intType, frames in intDic.items():
           prop = len(frames) / nFrames
           if prop > th:
-            if not pairId in newDic:
+            if pairId not in newDic:
               newDic[pairId] = {}
             newDic[pairId][intType] = prop
       return newDic
@@ -388,9 +388,9 @@ class OpenMMSystemPViewer(MDSystemPViewer):
 
       outDic = {}
       with open(inFile) as f:
-        csv_reader = csv.reader(f)
-        next(csv_reader)
-        for sline in csv_reader:
+        csvReader = csv.reader(f)
+        next(csvReader)
+        for sline in csvReader:
           outDic = parseFunc(sline, outDic, nFrames)
 
       if which == 'residue':
@@ -418,7 +418,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       df = np.array(df)
       frames = list(range(1, len(df[0])+1))
 
-      im, _ = heatmap(df, filtIds, frames, totalTime)
+      heatmap(df, filtIds, frames, totalTime)
       if title:
         plt.savefig(f'{title}.png')
       plt.tight_layout()
@@ -431,7 +431,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
         for frame, ints in frameDic.items():
           for intType in ints:
             intType = intType.capitalize()
-            if not intType in resDic:
+            if intType not in resDic:
               resDic[intType] = 0
             resDic[intType] += 1
             resCount += 1

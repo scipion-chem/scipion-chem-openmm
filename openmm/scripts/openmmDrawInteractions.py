@@ -63,29 +63,27 @@ def getExternalPosition(atomPoint, molCenter, distance=80):
 		dx /= length
 		dy /= length
 
-	new_x = atomPoint[0] + dx * distance
-	new_y = atomPoint[1] + dy * distance
+	newX = atomPoint[0] + dx * distance
+	newY = atomPoint[1] + dy * distance
 
-	return new_x, new_y
+	return newX, newY
 
 
 def getMoleculeCenter(drawer, mol):
 	"""Get the center of the drawn molecules"""
-	coords_x = []
-	coords_y = []
+	coordsX, coordsY = [], []
 
 	for i in range(mol.GetNumAtoms()):
 		try:
-			atom_point = drawer.GetDrawCoords(i)
-			coords_x.append(atom_point.x)
-			coords_y.append(atom_point.y)
+			atomPoint = drawer.GetDrawCoords(i)
+			coordsX.append(atomPoint.x)
+			coordsY.append(atomPoint.y)
 		except:
 			continue
 
-	if coords_x and coords_y:
-		centro_x = np.mean(coords_x)
-		centro_y = np.mean(coords_y)
-		return centro_x, centro_y
+	if coordsX and coordsY:
+		centroX, centroY = np.mean(coordsX), np.mean(coordsY)
+		return centroX, centroY
 	else:
 		return None
 
@@ -100,22 +98,22 @@ def setConnectionLineCoords(c1, c2, displac, margin=50):
 	displac = displac * 0.01	
 
 	ux, uy = dx / length, dy / length
-	x1_new, x2_new = x1 + ux * margin/2 + displac * dx, x2 - ux * margin + displac * dx
-	y1_new, y2_new = y1 + uy * margin/2 - displac * dy, y2 - uy * margin - displac * dy
-	return (x1_new, y1_new), (x2_new, y2_new)
+	x1New, x2New = x1 + ux * margin/2 + displac * dx, x2 - ux * margin + displac * dx
+	y1New, y2New = y1 + uy * margin/2 - displac * dy, y2 - uy * margin - displac * dy
+	return (x1New, y1New), (x2New, y2New)
 
 
 def getBoundingBox(allPoints, margin=200):
 	'''Get the bounding box for the figure given all the points drawn, with a given margin to accommodate them'''
-	all_x = [p[0] for p in allPoints]
-	all_y = [p[1] for p in allPoints]
+	allX = [p[0] for p in allPoints]
+	allY = [p[1] for p in allPoints]
 
-	min_x, max_x = min(all_x), max(all_x)
-	min_y, max_y = min(all_y), max(all_y)
+	minX, maxX = min(allX), max(allX)
+	minY, maxY = min(allY), max(allY)
 
-	bbox_x = [min_x - margin, max_x + margin]
-	bbox_y = [min_y - margin, max_y + margin]
-	return bbox_x, bbox_y
+	bboxX = [minX - margin, maxX + margin]
+	bboxY = [minY - margin, maxY + margin]
+	return bboxX, bboxY
 
 def parsePDBAtomNumbers(ligFile):
 		'''Parse the PDB to transform PDB atom numbers in RDKit atom numbers'''
@@ -125,47 +123,55 @@ def parsePDBAtomNumbers(ligFile):
 						d[int(line[7:11])] = i
 		return d
 
-def remove_numbers(s):
+def removeNumbers(s):
 	'''Remove digits form string'''
 	return ''.join(c for c in s if not c.isdigit())
 
 
-def optimizeCirclePositions(circle_positions, atomPositions, molCenter,
+def getCirclesRepulsion(circle, allCircles, interactDistance, molCenter, kRep):
+		repulsionForce = np.zeros(2)
+		for otherCircle in allCircles:
+			if circle != otherCircle:
+				direction = circle - otherCircle
+				distance = np.linalg.norm(direction)
+				if distance < interactDistance:
+					if distance == 0:
+						direction = circle - molCenter
+						direction[0] = -direction[0]
+						distance = 100
+
+					direction /= distance
+					repF = direction * kRep / (distance)
+					repulsionForce += repF
+		return repulsionForce
+
+def getAtomsRepulsion(circle, atomPositions, atomInteractRadius, kRep):
+	repulsionForce = np.zeros(2)
+	for atomPos in atomPositions:
+		direction = circle - atomPos
+		distance = np.linalg.norm(direction)
+		if distance < atomInteractRadius:
+			direction /= distance
+			repForce = direction * kRep / (distance)
+			repulsionForce += repForce
+	return repulsionForce
+
+def optimizeCirclePositions(circlePositions, atomPositions, molCenter,
 														interactDistance, atomInteractRadius, iterations=100):
 	"""Optimize the initial positions of the resdiue circles to avoid overlaps using repulsion forces between circles and 
   other circles and atoms. 
   Originally, the circle positions are next to the interactions atoms.
   """
-	circles = np.array(circle_positions)
+	circles = np.array(circlePositions)
 	kRep = 1000
 
 	for _ in range(iterations):
 		repForces = []
 		for i, circle in enumerate(circles):
 			# Repulsion against other circles
-			repulsionForce = np.zeros(2)
-			for j, other_circle in enumerate(circles):
-				if i != j:
-					direction = circle - other_circle
-					distance = np.linalg.norm(direction)
-					if distance < interactDistance:
-						if distance == 0:
-							direction = circle - molCenter
-							direction[0] = -direction[0]
-							distance = 100
-
-						direction /= distance
-						repF = direction * kRep / (distance)
-						repulsionForce += repF
-			
+			repulsionForce = getCirclesRepulsion(circle, circles, interactDistance, molCenter, kRep)
 			# Repulsion against closeby atoms
-			for atomPos in atomPositions:
-				direction = circle - atomPos
-				distance = np.linalg.norm(direction)
-				if distance < atomInteractRadius:
-					direction /= distance
-					repForce = direction * kRep / (distance)
-					repulsionForce += repForce
+			repulsionForce += getAtomsRepulsion(circle, atomPositions, atomInteractRadius, kRep)
 
 			# Update position
 			circles[i] += repulsionForce
@@ -217,13 +223,13 @@ def addParallelLabel(ax, x, y, texto, color, distancia=5, offSign=1, **kwargs):
 	else:
 		ux, uy = 0, 1
 
-	mid_x = np.mean(x)
-	mid_y = np.mean(y)
-	offset_x = distancia * ux * offSign
-	offset_y = distancia * uy * offSign
-	angle, offset_x, offset_y = normalizeAngle(angle, offset_x, offset_y)
+	midX = np.mean(x)
+	midY = np.mean(y)
+	offsetX = distancia * ux * offSign
+	offsetY = distancia * uy * offSign
+	angle, offsetX, offsetY = normalizeAngle(angle, offsetX, offsetY)
 
-	label = ax.annotate(texto, xy=(mid_x, mid_y), xytext=(offset_x, offset_y), color=color, textcoords='offset points',
+	label = ax.annotate(texto, xy=(midX, midY), xytext=(offsetX, offsetY), color=color, textcoords='offset points',
 							rotation=angle, ha='center', va='center', **kwargs)
 	return label
 
@@ -318,18 +324,17 @@ class MoleculeInteractions:
 	
 	def getBoundingBoxes(self, allPoints):
 			'''Sets the bounding boxes based on the drawn positions'''
-			bbox_x, bbox_y = getBoundingBox(allPoints)
-			bbox_width = bbox_x[1] - bbox_x[0]
-			bbox_height = bbox_y[1] - bbox_y[0]
+			bboxX, bboxY = getBoundingBox(allPoints)
+			bboxWidth, bboxHeight = bboxX[1] - bboxX[0], bboxY[1] - bboxY[0]
 
 			self.drawer.WriteDrawingText('mol_temp_full.png')
-			img_full = mpimg.imread('mol_temp_full.png')
+			imgFull = mpimg.imread('mol_temp_full.png')
 
-			self.fig, self.ax = plt.subplots(figsize=(10, 10 * bbox_height / bbox_width))
+			self.fig, self.ax = plt.subplots(figsize=(10, 10 * bboxHeight / bboxWidth))
 
-			self.ax.imshow(img_full)
-			self.ax.set_xlim(bbox_x[0], bbox_x[1])
-			self.ax.set_ylim(bbox_y[0], bbox_y[1]) 
+			self.ax.imshow(imgFull)
+			self.ax.set_xlim(bboxX[0], bboxX[1])
+			self.ax.set_ylim(bboxY[0], bboxY[1]) 
 			self.ax.set_axis_off()
 
 			self.fig.canvas.mpl_connect('button_press_event', self.on_press)
@@ -339,12 +344,12 @@ class MoleculeInteractions:
 	
 	def drawAminoacids(self):
 		'''Draw all the interacting resiudes and their labels'''
-		for resId, (circle_x, circle_y) in self.cirDic.items():
-			circleCoords = (circle_x, circle_y)
-			circle = Circle(circleCoords, self.circleRadius, facecolor=COLOR_DIC[remove_numbers(resId.upper())],
+		for resId, (circleX, circleY) in self.cirDic.items():
+			circleCoords = (circleX, circleY)
+			circle = Circle(circleCoords, self.circleRadius, facecolor=COLOR_DIC[removeNumbers(resId.upper())],
 											linewidth=2, alpha=0.2, transform=self.ax.transData)
 			self.ax.add_patch(circle)
-			cirLabel = self.ax.text(circle_x, circle_y, resId, color='black', weight='bold', fontsize=8,
+			cirLabel = self.ax.text(circleX, circleY, resId, color='black', weight='bold', fontsize=8,
 															ha='center', va='center', transform=self.ax.transData)
 
 			self.resCircles[resId] = circle
@@ -397,7 +402,7 @@ class MoleculeInteractions:
 			else:
 				nAtomIds = self.atomNumDic[int(eval(atomIds))]
 
-			if not resId in nDic:
+			if resId not in nDic:
 				nDic[resId] = {}
 			nDic[resId][nAtomIds] = {}
 			for intType, n in iDic.items():
@@ -409,25 +414,25 @@ class MoleculeInteractions:
 		cirDic = {}
 		centerX, centerY = getMoleculeCenter(self.drawer, self.mol)
 		for resId, atomDic in nDic.items():
-			atom_idx = list(atomDic.keys())[0]
-			if isinstance(atom_idx, str):
-				atom_idx = int(atom_idx.split('_')[0])
+			atomIdx = list(atomDic.keys())[0]
+			if isinstance(atomIdx, str):
+				atomIdx = int(atomIdx.split('_')[0])
 				iDist = self.interactDistance * 2
 			else:
 				iDist = self.interactDistance
 
-			atom_point = self.drawer.GetDrawCoords(atom_idx)
-			atom_point = [atom_point.x, atom_point.y]
-			circle_x, circle_y = getExternalPosition(atom_point, (centerX, centerY), iDist)
-			cirDic[resId] = [circle_x, circle_y]
+			atomPoint = self.drawer.GetDrawCoords(atomIdx)
+			atomPoint = [atomPoint.x, atomPoint.y]
+			circleX, circleY = getExternalPosition(atomPoint, (centerX, centerY), iDist)
+			cirDic[resId] = [circleX, circleY]
 		return cirDic
 	
 	def getMolPoints(self):
 		'''Returns the molecule atom coordinates'''
 		allPoints = []
 		for i in range(self.mol.GetNumAtoms()):
-			atom_point = self.drawer.GetDrawCoords(i)
-			allPoints.append((atom_point.x, atom_point.y))
+			atomPoint = self.drawer.GetDrawCoords(i)
+			allPoints.append((atomPoint.x, atomPoint.y))
 		return allPoints
 
 	def addInteractLine(self, atomCoords, circleCoords, disp, intColor, n, offSign):
@@ -446,19 +451,19 @@ class MoleculeInteractions:
 		circleCoords = circle.get_center()
 
 		circleLines = []
-		for atom_idx, intsDic in self.nDic[resId].items():
-			if isinstance(atom_idx, str):
+		for atomIdx, intsDic in self.nDic[resId].items():
+			if isinstance(atomIdx, str):
 				piCoords = []
-				for atomAro in atom_idx.split('_'):
-					atom_point = self.drawer.GetDrawCoords(int(atomAro))
-					piCoords.append([atom_point.x, atom_point.y])
+				for atomAro in atomIdx.split('_'):
+					atomPoint = self.drawer.GetDrawCoords(int(atomAro))
+					piCoords.append([atomPoint.x, atomPoint.y])
 
 				piPoint = np.mean(np.array(piCoords), axis=0)
 				atomCoords = (piPoint[0], piPoint[1])
 
 			else:
-				atom_point = self.drawer.GetDrawCoords(atom_idx)
-				atomCoords = (atom_point.x, atom_point.y)
+				atomPoint = self.drawer.GetDrawCoords(atomIdx)
+				atomCoords = (atomPoint.x, atomPoint.y)
 
 			nInts = len(intsDic)
 			displacs = getDisplacements(nInts)
