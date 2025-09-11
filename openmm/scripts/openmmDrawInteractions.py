@@ -290,7 +290,7 @@ class MoleculeInteractions:
 
 		self.fig.canvas.draw()
 
-	def on_close(self, event):
+	def onClose(self, event):
 		event.canvas.figure.savefig(self.outFile, dpi=300, bbox_inches='tight')
 		plt.close('all')
 
@@ -340,7 +340,7 @@ class MoleculeInteractions:
 			self.fig.canvas.mpl_connect('button_press_event', self.onPress)
 			self.fig.canvas.mpl_connect('button_release_event', self.onRelease)
 			self.fig.canvas.mpl_connect('motion_notify_event', self.onMotion)
-			self.fig.canvas.mpl_connect('close_event', self.on_close)
+			self.fig.canvas.mpl_connect('close_event', self.onClose)
 	
 	def drawAminoacids(self):
 		'''Draw all the interacting resiudes and their labels'''
