@@ -53,24 +53,26 @@ def parseResidueLine(sline, outDic, nFrames):
     outDic[resId][frame].append(intType)
     return outDic
 
+def parseLineLigIds(sline, intType):
+  if intType == 'hbond':
+    protIsDon = sline[18]
+    ligIds = [sline[21] if protIsDon.upper() == 'TRUE' else sline[19]]
+  elif intType == 'waterbridge':
+    protIsDon = sline[18]
+    ligIds = [sline[27] if protIsDon.upper() == 'TRUE' else sline[26]]
+  elif intType in ['saltbridge', 'pistacking', 'pication']:
+    ligIds = sline[33].split(',')
+  elif intType in ['halogen']:
+    ligIds = sline[40].split(',')
+  else:
+    ligIds = [sline[8]]
+  return ligIds
 
 def parseLigandLine(sline, outDic, nFrames):
     frame = int(sline[12])
     intType = sline[13]
 
-    if intType == 'hbond':
-      protIsDon = sline[18]
-      ligIds = [sline[21] if protIsDon.upper() == 'TRUE' else sline[19]]
-    elif intType == 'waterbridge':
-      protIsDon = sline[18]
-      ligIds = [sline[27] if protIsDon.upper() == 'TRUE' else sline[26]]
-    elif intType in ['saltbridge', 'pistacking', 'pication']:
-      ligIds = sline[33].split(',')
-    elif intType in ['halogen']:
-      ligIds = sline[40].split(',')
-    else:
-      ligIds = [sline[8]]
-
+    ligIds = parseLineLigIds(sline, intType)
     for ligId in ligIds:
       if isinstance(ligId, str):
         ligId = eval(ligId)
@@ -88,22 +90,7 @@ def parseInteractionsLine(sline, outDic, nFrames):
     resNr, resType, resChain = sline[1:4]
     resId = f'{resChain}:{resType}_{resNr}'
 
-    if intType == 'hbond':
-      protIsDon = sline[18]
-      ligIds = [sline[21] if protIsDon.upper() == 'TRUE' else sline[19]]
-    elif intType == 'waterbridge':
-      protIsDon = sline[18]
-      ligIds = [sline[27] if protIsDon.upper() == 'TRUE' else sline[26]]
-    elif intType in ['saltbridge', 'pistacking', 'pication']:
-      ligIds = sline[33].split(',')
-    elif intType in ['halogen']:
-      ligIds = sline[40].split(',')
-    else:
-      ligIds = [sline[8]]
-
-    if intType in ['pistacking', 'pication']:
-      ligIds = ['_'.join(ligIds)]
-
+    ligIds = parseLineLigIds(sline, intType)
     for ligId in ligIds:
       pairId = (resId, ligId)
       if pairId not in outDic:
