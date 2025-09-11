@@ -263,7 +263,7 @@ class MoleculeInteractions:
 		self.addLegends()
 
 	########## Actions tools ########################
-	def on_press(self, event):
+	def onPress(self, event):
 		if event.inaxes != self.ax:
 			return
 
@@ -273,10 +273,10 @@ class MoleculeInteractions:
 				self.selectedCircle = circle
 				break
 
-	def on_release(self, event):
+	def onRelease(self, event):
 		self.selectedCircle = None
 
-	def on_motion(self, event):
+	def onMotion(self, event):
 		if self.selectedCircle is None or event.inaxes != self.ax:
 			return
 
@@ -300,11 +300,11 @@ class MoleculeInteractions:
 			rdDepictor.Compute2DCoords(self.mol)
 			Chem.RemoveStereochemistry(self.mol)
 			self.mol = rdMolDraw2D.PrepareMolForDrawing(self.mol)
-	
+
 			self.drawer = rdMolDraw2D.MolDraw2DCairo(int(self.canvasSize * 0.5), int(self.canvasSize * 0.5))
 			self.drawer.DrawMolecule(self.mol)
 			self.drawer.FinishDrawing()
-		
+
 	def getDrawnPoints(self, nDic):
 		'''Places the residues given the molecule atoms positions and returns that information
 		'''
@@ -312,7 +312,7 @@ class MoleculeInteractions:
 		cirDic = self.getCirclesDic(nDic)
 
 		centerX, centerY = getMoleculeCenter(self.drawer, self.mol)
-		newCircles = optimizeCirclePositions(list(cirDic.values()), molPoints, [centerX, centerY], 
+		newCircles = optimizeCirclePositions(list(cirDic.values()), molPoints, [centerX, centerY],
 																				 self.interactDistance, self.interactDistance)
 
 		for i, resId in enumerate(cirDic):
@@ -321,7 +321,7 @@ class MoleculeInteractions:
 			cirDic[resId] = newCircle
 
 		return cirDic, molPoints
-	
+
 	def getBoundingBoxes(self, allPoints):
 			'''Sets the bounding boxes based on the drawn positions'''
 			bboxX, bboxY = getBoundingBox(allPoints)
@@ -334,12 +334,12 @@ class MoleculeInteractions:
 
 			self.ax.imshow(imgFull)
 			self.ax.set_xlim(bboxX[0], bboxX[1])
-			self.ax.set_ylim(bboxY[0], bboxY[1]) 
+			self.ax.set_ylim(bboxY[0], bboxY[1])
 			self.ax.set_axis_off()
 
-			self.fig.canvas.mpl_connect('button_press_event', self.on_press)
-			self.fig.canvas.mpl_connect('button_release_event', self.on_release)
-			self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
+			self.fig.canvas.mpl_connect('button_press_event', self.onPress)
+			self.fig.canvas.mpl_connect('button_release_event', self.onRelease)
+			self.fig.canvas.mpl_connect('motion_notify_event', self.onMotion)
 			self.fig.canvas.mpl_connect('close_event', self.on_close)
 	
 	def drawAminoacids(self):
