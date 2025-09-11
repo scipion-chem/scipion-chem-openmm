@@ -47,7 +47,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
     This protocol will start a Molecular Dynamics simulation.
     """
     _label = 'system simulation'
-    # todo: set nThreads for the OPENMMDL cpus
+    stepsExecutionMode = params.STEPS_PARALLEL
 
 
     # -------------------------- DEFINE param functions ----------------------
@@ -127,6 +127,8 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         bGroup = form.addGroup('Barostat')
         self._defineBarostat(bGroup)
 
+        form.addParallelSection(threads=4, mpi=1)
+
 
     def _insertAllSteps(self):
       self._insertFunctionStep(self.simulateStep)
@@ -184,7 +186,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         outTopFile, outDcdFile = os.path.abspath(self._getPath(f'{systemName}.pdb')), \
                                  os.path.abspath(self._getPath(f'{systemName}.dcd'))
 
-        args = f'-t {outTopFile} -d {outDcdFile} -n LIG'
+        args = f'-t {outTopFile} -d {outDcdFile} -n LIG -c {self.numberOfThreads.get()}'
         pwchemPlugin.runCondaCommand(self, args, OPENMM_DIC, 'openmmdl_analysis', cwd=oDir)
 
 
