@@ -128,10 +128,11 @@ def removeNumbers(s):
 	return ''.join(c for c in s if not c.isdigit())
 
 
-def getCirclesRepulsion(circle, allCircles, interactDistance, molCenter, kRep):
+def getCirclesRepulsion(circleI, allCircles, interactDistance, molCenter, kRep):
+		circle, i = circleI
 		repulsionForce = np.zeros(2)
-		for otherCircle in allCircles:
-			if circle != otherCircle:
+		for j, otherCircle in enumerate(allCircles):
+			if i != j:
 				direction = circle - otherCircle
 				distance = np.linalg.norm(direction)
 				if distance < interactDistance:
@@ -169,7 +170,7 @@ def optimizeCirclePositions(circlePositions, atomPositions, molCenter,
 		repForces = []
 		for i, circle in enumerate(circles):
 			# Repulsion against other circles
-			repulsionForce = getCirclesRepulsion(circle, circles, interactDistance, molCenter, kRep)
+			repulsionForce = getCirclesRepulsion((circle, i), circles, interactDistance, molCenter, kRep)
 			# Repulsion against closeby atoms
 			repulsionForce += getAtomsRepulsion(circle, atomPositions, atomInteractRadius, kRep)
 
@@ -442,6 +443,7 @@ class MoleculeInteractions:
 		xs, ys = [c1[0], c2[0]], [c1[1], c2[1]]
 		line = Line2D(xs, ys, color=intColor, alpha=0.6, linewidth=1.5, linestyle='--')
 		self.ax.add_line(line)
+		n = str(round(float(n), 2))
 		label = addParallelLabel(self.ax, xs, ys, n, intColor, offSign=offSign)
 		return line, label
 
