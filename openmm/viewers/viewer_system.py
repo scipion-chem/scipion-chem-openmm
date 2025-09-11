@@ -458,7 +458,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
         f.write(f'outFile :: {outFile}\n')
 
       openmmPlugin.runScript(self, 'openmmDrawInteractions.py', args=paramsFile, env=RDKIT_DIC,
-                             popen=True, cwd=self._getPath())
+                             popen=True, cwd=self._getPath(), wait=False)
 
 
 
