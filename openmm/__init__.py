@@ -62,6 +62,7 @@ class Plugin(pwchem.Plugin):
                              'OPENMM_ENV_CREATED').\
             addCommand(f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
                         'ESPALOMA_MODEL_DOWNLOADED'). \
+            addCondaPackages(['openmmdl'], channel='conda-forge').\
             addPackage(env, dependencies=['conda'], default=default)
 
     @classmethod
