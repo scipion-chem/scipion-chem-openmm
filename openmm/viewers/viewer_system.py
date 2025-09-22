@@ -60,8 +60,10 @@ def parseLineLigIds(sline, intType):
   elif intType == 'waterbridge':
     protIsDon = sline[18]
     ligIds = [sline[27] if protIsDon.upper() == 'TRUE' else sline[26]]
-  elif intType in ['saltbridge', 'pistacking', 'pication']:
+  elif intType in ['saltbridge']:
     ligIds = sline[33].split(',')
+  elif intType in ['pistacking', 'pication']:
+    ligIds = [sline[33].replace(',', '_')]
   elif intType in ['halogen']:
     ligIds = sline[40].split(',')
   else:
