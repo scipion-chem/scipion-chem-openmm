@@ -38,7 +38,8 @@ from .. import Plugin as openmmPlugin
 from ..objects import OpenMMSystem
 
 PENERGY, TEMP, VOL = 'Potential Energy (kJ/mole)', "Temperature (K)", "Box Volume (nm^3)"
-
+COLOR_INT_DIC = {'halogen': 'red', 'hydrophobic': 'green', 'pication': 'orange', 'pistacking': 'brown',
+								 'saltbridge': 'gray', 'waterbridge': 'blue', 'hbond': 'cyan'}
 
 def parseResidueLine(sline, outDic, nFrames):
     frame = int(sline[12])
@@ -185,12 +186,11 @@ def histogram(resContacts, nFrames, outLabel):
   _, ax = plt.subplots(figsize=(12, 8))
 
   # Create stacked bars
-  colors = plt.cm.Set1(np.linspace(0, 1, len(interactionTypes)))
   bars = []
 
   for i, (itype, values) in enumerate(stackData.items()):
     values = [v / nFrames for v in values]
-    bar = ax.bar(residues, values, bottom=bottom, label=itype, color=colors[i])
+    bar = ax.bar(residues, values, bottom=bottom, label=itype, color=COLOR_INT_DIC[itype.lower()])
     bars.append(bar)
     bottom += np.array(values)
 

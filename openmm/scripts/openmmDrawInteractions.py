@@ -47,8 +47,8 @@ RES_GROUPS = {'Apolar': ['GLY', 'ALA', 'VAL', 'LEU', 'ILE', 'MET'], 'Aromatic': 
 
 COLOR_DIC = {res: RES_COLORS[group] for group, resGroup in RES_GROUPS.items() for res in resGroup}
 
-COLOR_INT_DIC = {'halogen': 'red', 'hydrophobic': 'green', 'pication': 'orange', 'pistacking': 'brown',
-								 'saltbridge': 'gray', 'waterbridge': 'blue', 'hbond': 'cyan'}
+COLOR_INT_DIC = {'halogen': 'red', 'hbond': 'cyan', 'hydrophobic': 'green', 'pication': 'orange', 'pistacking': 'brown',
+								 'saltbridge': 'gray', 'waterbridge': 'blue'}
 
 DEF_SAVE_FILE = 'moleculeInteractions.png'
 
@@ -371,18 +371,17 @@ class MoleculeInteractions:
 			element = Patch(facecolor=color, alpha=0.4, edgecolor='black', label=resGroup, linewidth=1)
 			residuePatches.append(element)
 
-		residueLegend = self.ax.legend(handles=residuePatches, title="Residues type", frameon=True,
-																		loc='upper left')
+		residueLegend = self.ax.legend(handles=residuePatches, title="Residues type", frameon=True, loc='upper left')
 		self.ax.add_artist(residueLegend)
 
 		interactionPatches = []
 		for intType, color in COLOR_INT_DIC.items():
 			element = Line2D([0], [0], color=color, linewidth=2.5,
-												linestyle='--', label=intType)
+												linestyle='--', label=intType.capitalize())
 			interactionPatches.append(element)
 
 		interactionLegend = self.ax.legend(handles=interactionPatches, title="Interactions type", frameon=True,
-																		 loc='upper right')
+																			 loc='upper right')
 		self.ax.add_artist(interactionLegend)
 
 
