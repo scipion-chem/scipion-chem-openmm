@@ -184,10 +184,10 @@ class ProtOpenMMSystemPrep(EMProtocol):
                         label='Input from: ', choices=['AtomStruct', 'SetOfSmallMolecules'],
                         help='Type of input you want to use')
         iGroup.addParam('inputStructure', params.PointerParam, pointerClass='SchrodingerAtomStruct, AtomStruct',
-                        label='Input structure to be prepared for MD:', condition='inputFrom==0',
+                        label='Input structure to be prepared for MD:', condition='inputFrom==0', allowsNull=True,
                         help='Atomic structure to be prepared for MD by solvation, ions addition etc')
         iGroup.addParam('inputSetOfMols', params.PointerParam, pointerClass='SetOfSmallMolecules',
-                        label='Input set of molecules:', condition=LIG_INPUT,
+                        label='Input set of molecules:', condition=LIG_INPUT, allowsNull=True,
                         help='Input set of docked molecules. One of them will be prepared together with its target')
         iGroup.addParam('inputLigand', params.StringParam, condition=LIG_INPUT,
                         label='Ligand to prepare: ',
