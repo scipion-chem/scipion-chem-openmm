@@ -16,7 +16,7 @@ import sys
 import os
 import mdtraj as md
 
-def read_params(path):
+def readParams(path):
     d = {}
     with open(path) as f:
         for line in f:
@@ -25,8 +25,8 @@ def read_params(path):
                 d[k.strip()] = v.strip()
     return d
 
-def main(params_path):
-    params = read_params(params_path)
+def main(paramsPath):
+    params = readParams(paramsPath)
     pdbIn = params.get('pdbIn','')
     dcdIn = params.get('dcdIn','').strip()
     outPrefix = params.get('outPrefix','systemNowater')
