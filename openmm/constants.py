@@ -25,6 +25,7 @@
 # **************************************************************************
 
 
-OPENMM_DIC = {'name': 'openmm',    'version': '8.1.2', 'home': 'OPENMM_HOME'}
-ESPALOMA_DIC = {'name': 'espaloma', 'version': '0.3.2', 'home': 'ESPALOMA_HOME'}
+OPENMM_DIC = {'name': 'openmm',    'version': '8.3', 'home': 'OPENMM_HOME'}
+#ESPALOMA_DIC = {'name': 'espaloma', 'version': '0.3.2', 'home': 'ESPALOMA_HOME'}
+ESPALOMA_DIC = {'name': 'espaloma', 'version': '0.4.0', 'home': 'ESPALOMA_HOME'}
 ODUCK_DIC = {'name': 'openduck',    'version': '0.2.0', 'home': 'ODUCK_HOME'}

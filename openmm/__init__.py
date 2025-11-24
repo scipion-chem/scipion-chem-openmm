@@ -95,7 +95,7 @@ class Plugin(pwchem.Plugin):
     @classmethod
     def getEspalomaModelUrl(cls):
         v = ESPALOMA_DIC["version"]
-        return f'https://github.com/choderalab/espaloma/releases/download/{v}/espaloma-{v}.pt'
+        return f'https://github.com/choderalab/espaloma/releases/download/{v}/espaloma-latest.pt'
 
     @classmethod
     def getEspalomaModelFile(cls):
