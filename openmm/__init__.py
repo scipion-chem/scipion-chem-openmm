@@ -50,6 +50,7 @@ class Plugin(pwchem.Plugin):
     def defineBinaries(cls, env):
         cls.addOPENMMPackage(env, default=bool(cls.getCondaActivationCmd()))
         cls.addODUCKPackage(env, default=bool(cls.getCondaActivationCmd()))
+        cls.addOPENMMcphPackage(env, default=bool(cls.getCondaActivationCmd()))
 
     @classmethod
     def addOPENMMPackage(cls, env, default=True):
@@ -62,8 +63,12 @@ class Plugin(pwchem.Plugin):
                              'OPENMM_ENV_CREATED').\
             addCommand(f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
                         'ESPALOMA_MODEL_DOWNLOADED'). \
-            addCondaPackages(['openmmdl'], channel='conda-forge').\
-            addPackage(env, dependencies=['conda'], default=default)
+            addCondaPackages(['openmmdl'], channel='conda-forge'). \
+            addCommand(
+            f"cd {cls.getVar(OPENMM_DIC['home'])} && git clone https://github.com/openmm/openmm-cph.git",
+            'CPH_REPO_CLONED'
+        ).addPackage(env, dependencies=['conda'], default=default)
+
 
     @classmethod
     def addODUCKPackage(cls, env, default=True):
