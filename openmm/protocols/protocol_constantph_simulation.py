@@ -42,8 +42,6 @@ from ..constants import OPENMM_DIC
 from ..objects import OpenMMSystem
 
 from openmm import *
-from openmm.app import *
-from openmm.unit import *
 
 
 class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
@@ -51,6 +49,8 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
     This protocol will start a Molecular Dynamics simulation with constant pH specified by user.
     """
     _label = 'constant pH system simulation'
+    _openmmApp = None
+    _openmmUnit = None
     stepsExecutionMode = params.STEPS_PARALLEL
     ASP_VAR = {1: ['ASP', 'ASH']}
     GLU_VAR = {1: ['GLU', 'GLH']}
@@ -59,14 +59,23 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
     HIE_VAR = {1: ['HIP', 'HIE']}
     LYS_VAR = {1: ['LYS', 'LYN']}
 
-    EXPLICIT_PARAMS = dict(nonbondedMethod=PME,
-                           nonbondedCutoff=0.9 * nanometers,
-                           constraints=HBonds,
-                           hydrogenMass=1.5 * amu)
+    EXPLICIT_PARAMS = None
+    IMPLICIT_PARAMS = None
 
-    IMPLICIT_PARAMS = dict(nonbondedMethod=CutoffNonPeriodic,
-                           nonbondedCutoff=2.0 * nanometers,
-                           constraints=HBonds)
+    def setOpenMMParams(cls):
+        """Initialize EXPLICIT_PARAMS and IMPLICIT_PARAMS after lazy-loading OpenMM."""
+        app, unit = cls.import_openmm()
+        cls.EXPLICIT_PARAMS = dict(
+            nonbondedMethod=app.PME,
+            nonbondedCutoff=0.9 * unit.nanometers,
+            constraints=app.HBonds,
+            hydrogenMass=1.5 * unit.amu
+        )
+        cls.IMPLICIT_PARAMS = dict(
+            nonbondedMethod=app.CutoffNonPeriodic,
+            nonbondedCutoff=2.0 * unit.nanometers,
+            constraints=app.HBonds
+        )
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineMinimization(self, form):
@@ -168,7 +177,9 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         from reference_energy import ReferenceEnergyFinder
 
         cifFile = self.inputSystem.get().getCifFile()
-        structure = MMCIFFile(cif_file)
+        app, unit = self.import_openmm()
+        structure = app.MMCIFFile(cif_file)
+
         topology = structure.topology
 
         variants, referenceEnergies = self.getVarsAndRefEnergies(topology)
@@ -179,27 +190,33 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         else:
             ph = self.getListOfPH()
         #force fields
+
+        self.setOpenMMParams()
+
         explicitFFfiles, implicitFFfiles = self.getFFFiles()
-        explicitFF = ForceField(*explicitFFfiles)
-        implicitFF = ForceField(*implicitFFfiles)
+        app, unit = self.import_openmm()
+        explicitFF = app.ForceField(*explicitFFfiles)
+        implicitFF = app.ForceField(*implicitFFfiles)
         explicitParams = self.EXPLICIT_PARAMS
         implicitParams = self.IMPLICIT_PARAMS
         #integrators
         integrator, relaxationIntegrator = self.getIntegrators()
-        
+
         cph = ConstantPH(topology, structure.positions, ph, explicitFF, implicitFF,
                          variants, referenceEnergies, 100, explicitParams, implicitParams, integrator, relaxationIntegrator)
 
         #barostat
         if self.addBarostat.get():
-            cph.simulation.system.addForce(MonteCarloBarostat(self.pressure.get() * bar,
-                                                              temperature))
+            app, unit = self.import_openmm()
+            cph.simulation.system.addForce(app.MonteCarloBarostat(self.pressure.get() * unit.bar,
+                                                                  self.temperature.get() * unit.kelvin))
             cph.simulation.context.reinitialize(preserveState=True)
 
         #minimize
         if self.addMinimization.get():
             print("Minimizing energy...")
-            cph.simulation.minimizeEnergy(tolerance=self.minimTol.get() * kilojoules_per_mole,
+            app, unit = self.import_openmm()
+            cph.simulation.minimizeEnergy(tolerance=self.minimTol.get() * unit.kilojoules_per_mole,
                                           maxIterations=self.maxIter.get())
             print("Energy minimization complete.")
 
@@ -244,6 +261,31 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
       return ws
 
     # --------------------------- UTILS functions -----------------------------------
+    @classmethod
+    def import_openmm(cls):
+        """Lazy import OpenMM modules only when needed."""
+        if cls._openmm_app and cls._openmm_unit:
+            return cls._openmm_app, cls._openmm_unit
+
+        try:
+            import openmm.app as app
+            import openmm.unit as unit
+        except ModuleNotFoundError:
+            # Dynamically add site-packages from OpenMM environment
+            home = cls.getVar(OPENMM_DIC['home'])
+            env_path = os.path.join(home, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}",
+                                    "site-packages")
+            if os.path.exists(env_path):
+                sys.path.insert(0, env_path)
+                import importlib
+                app = importlib.import_module("openmm.app")
+                unit = importlib.import_module("openmm.unit")
+            else:
+                raise ModuleNotFoundError(f"OpenMM environment not found at {env_path}")
+        cls._openmmApp = app
+        cls._openmmUnit = unit
+        return app, unit
+
     def getListOfPH(self):
       userInput = self.manyPH.get()
       listPH = userInput.split(',')
@@ -253,8 +295,9 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         temperature = self.temperature.get() * kelvin
         stepSize = self.stepSize.get() * picoseconds
         fricCoef = self.fricCoef.get() / picosecond
-        integrator = LangevinIntegrator(temperature, fricCoef, stepSize)
-        relaxationIntegrator = LangevinIntegrator(temperature, 10.0 / picosecond, 0.002 * picoseconds)
+        app, unit = self.import_openmm()
+        integrator = app.LangevinIntegrator(temperature, fricCoef, stepSize)
+        relaxationIntegrator = app.LangevinIntegrator(temperature, 10.0 / unit.picosecond, 0.002 * unit.picoseconds)
         return integrator, relaxationIntegrator
 
     def computeReferenceEnergies(self, pdbFile, variantsDict, targetpKa):
