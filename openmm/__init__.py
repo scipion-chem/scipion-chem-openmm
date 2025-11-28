@@ -57,14 +57,17 @@ class Plugin(pwchem.Plugin):
         """ This function installs Espaloma package. """
         installer = InstallHelper(OPENMM_DIC['name'], packageHome=cls.getVar(OPENMM_DIC['home']),
                                   packageVersion=OPENMM_DIC['version'])
-
+        home = cls.getEnvName(OPENMM_DIC)
         # Installing package
-        installer.addCommand(f'conda env create -f {cls.getPluginHome("espalomaEnv.yml")} -y ',
-                             'OPENMM_ENV_CREATED').\
-            addCommand(f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
-                        'ESPALOMA_MODEL_DOWNLOADED'). \
-            addCondaPackages(['openmmdl'], channel='conda-forge'). \
-            addCommand(
+        installer.addCommand(
+            f'conda create -n {home} -c conda-forge espaloma=0.4.0 openmm=8.3 -y ',
+            'OPENMM_ENV_CREATED'
+        ).addCommand(
+            f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
+            'ESPALOMA_MODEL_DOWNLOADED'
+        ).addCondaPackages(
+            ['openmmdl'], channel='conda-forge'
+        ).addCommand(
             f"cd {cls.getVar(OPENMM_DIC['home'])} && git clone https://github.com/openmm/openmm-cph.git",
             'CPH_REPO_CLONED'
         ).addPackage(env, dependencies=['conda'], default=default)
