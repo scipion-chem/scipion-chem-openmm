@@ -51,6 +51,10 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
     _label = 'constant pH system simulation'
     _openmmApp = None
     _openmmUnit = None
+
+    _constantPH = None
+    _refEnergyFinder = None
+
     stepsExecutionMode = params.STEPS_PARALLEL
     ASP_VAR = {1: ['ASP', 'ASH']}
     GLU_VAR = {1: ['GLU', 'GLH']}
@@ -64,7 +68,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
 
     def setOpenMMParams(cls):
         """Initialize EXPLICIT_PARAMS and IMPLICIT_PARAMS after lazy-loading OpenMM."""
-        app, unit = cls.import_openmm()
+        app, unit = cls.importOpenmm()
         cls.EXPLICIT_PARAMS = dict(
             nonbondedMethod=app.PME,
             nonbondedCutoff=0.9 * unit.nanometers,
@@ -162,24 +166,18 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
       self._insertFunctionStep(self.prepareTitrattionStep)
+      self._insertFunctionStep(self.productionRunStep)
       #if self.useOpenmmdl.get() and self.inputSystem.get().getLigTopologyFile():
       #  self._insertFunctionStep(self.analyzeStep)
       #self._insertFunctionStep(self.createOutputStep)
       pass
 
     def prepareTitrationStep(self):
-        home = Plugin.getVar(OPENMM_DIC['home'])
-        repoPath = os.path.join(home, 'openmm-cph')
-        if repoPath not in sys.path:
-            sys.path.insert(0, repoPath)
-
-        from constantph import ConstantPH
-        from reference_energy import ReferenceEnergyFinder
+        ConstantPH, ReferenceEnergyFinder = Plugin.importScripts()
+        app, unit = self.importOpenmm()
 
         cifFile = self.inputSystem.get().getCifFile()
-        app, unit = self.import_openmm()
-        structure = app.MMCIFFile(cif_file)
-
+        structure = app.MMCIFFile(cifFile)
         topology = structure.topology
 
         variants, referenceEnergies = self.getVarsAndRefEnergies(topology)
@@ -194,7 +192,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         self.setOpenMMParams()
 
         explicitFFfiles, implicitFFfiles = self.getFFFiles()
-        app, unit = self.import_openmm()
+        app, unit = self.importOpenmm()
         explicitFF = app.ForceField(*explicitFFfiles)
         implicitFF = app.ForceField(*implicitFFfiles)
         explicitParams = self.EXPLICIT_PARAMS
@@ -207,7 +205,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
 
         #barostat
         if self.addBarostat.get():
-            app, unit = self.import_openmm()
+            app, unit = self.importOpenmm()
             cph.simulation.system.addForce(app.MonteCarloBarostat(self.pressure.get() * unit.bar,
                                                                   self.temperature.get() * unit.kelvin))
             cph.simulation.context.reinitialize(preserveState=True)
@@ -215,13 +213,16 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         #minimize
         if self.addMinimization.get():
             print("Minimizing energy...")
-            app, unit = self.import_openmm()
+            app, unit = self.importOpenmm()
             cph.simulation.minimizeEnergy(tolerance=self.minimTol.get() * unit.kilojoules_per_mole,
                                           maxIterations=self.maxIter.get())
             print("Energy minimization complete.")
 
+    def productionRunStep(self):
+        pass #todo prodction run
 
-    def createOutputStep(self):
+
+    def createOutputStep(self): #todo this when i see how and if it works
       systemName = self.getSystemName()
       systemFile = os.path.relpath(self.getSystemFile())
       outTopFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
@@ -262,7 +263,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
 
     # --------------------------- UTILS functions -----------------------------------
     @classmethod
-    def import_openmm(cls):
+    def importOpenmm(cls):
         """Lazy import OpenMM modules only when needed."""
         if cls._openmm_app and cls._openmm_unit:
             return cls._openmm_app, cls._openmm_unit
@@ -286,6 +287,34 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         cls._openmmUnit = unit
         return app, unit
 
+    @classmethod
+    def importScripts(cls):
+
+        if cls._constantPH and cls._refEnergyFinder:
+            return cls._constantPH, cls._refEnergyFinder
+
+        import os, sys
+
+        home = cls.getVar(OPENMM_DIC['home'])
+        cph_path = os.path.join(home, "openmm-cph")
+
+        if not os.path.exists(cph_path):
+            raise FileNotFoundError(f"openmm-cph not found at {cph_path}")
+
+        if cph_path not in sys.path:
+            sys.path.insert(0, cph_path)
+
+        try:
+            from constantph import ConstantPH
+            from reference_energy import ReferenceEnergyFinder
+        except Exception as e:
+            raise ImportError(f"Could not import ConstantPH modules: {e}")
+
+        cls._constantPH = ConstantPH
+        cls._refEnergyFinder = ReferenceEnergyFinder
+
+        return ConstantPH, ReferenceEnergyFinder
+
     def getListOfPH(self):
       userInput = self.manyPH.get()
       listPH = userInput.split(',')
@@ -295,7 +324,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         temperature = self.temperature.get() * kelvin
         stepSize = self.stepSize.get() * picoseconds
         fricCoef = self.fricCoef.get() / picosecond
-        app, unit = self.import_openmm()
+        app, unit = self.importOpenmm()
         integrator = app.LangevinIntegrator(temperature, fricCoef, stepSize)
         relaxationIntegrator = app.LangevinIntegrator(temperature, 10.0 / unit.picosecond, 0.002 * unit.picoseconds)
         return integrator, relaxationIntegrator
