@@ -50,7 +50,6 @@ class Plugin(pwchem.Plugin):
     def defineBinaries(cls, env):
         cls.addOPENMMPackage(env, default=bool(cls.getCondaActivationCmd()))
         cls.addODUCKPackage(env, default=bool(cls.getCondaActivationCmd()))
-        cls.addOPENMMcphPackage(env, default=bool(cls.getCondaActivationCmd()))
 
     @classmethod
     def addOPENMMPackage(cls, env, default=True):
@@ -60,7 +59,7 @@ class Plugin(pwchem.Plugin):
         home = cls.getEnvName(OPENMM_DIC)
         # Installing package
         installer.addCommand(
-            f'conda create -n {home} -c conda-forge espaloma=0.4.0 openmm=8.3 -y ',
+            f'conda create -n {home} -c conda-forge espaloma=0.4.0 openmm=8.3 cuda-version=12.8 -y ',
             'OPENMM_ENV_CREATED'
         ).addCommand(
             f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
@@ -89,6 +88,12 @@ class Plugin(pwchem.Plugin):
 
     # ---------------------------------- Utils functions  -----------------------
     @classmethod
+    def getEnvActivationCommand(cls, packageDictionary, condaHook=True):
+        """ This function returns the conda enviroment activation command for a given package. """
+        return '{}conda activate {}'.format(cls.getCondaActivationCmd() if condaHook else '',
+                                            cls.getEnvName(packageDictionary))
+
+    @classmethod
     def getPluginHome(cls, path=""):
         import openmm
         fnDir = os.path.split(openmm.__file__)[0]
@@ -112,4 +117,3 @@ class Plugin(pwchem.Plugin):
     @classmethod
     def getOpenDuckGithub(cls):
         return "https://github.com/CBDD/openduck.git"
-

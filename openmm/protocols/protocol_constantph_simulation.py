@@ -29,7 +29,7 @@
 """
 This module will run the simulation for a constant pH
 """
-import os
+import os, sys
 
 from pyworkflow.protocol import params
 from pyworkflow.utils import Message
@@ -41,7 +41,7 @@ from .. import Plugin
 from ..constants import OPENMM_DIC
 from ..objects import OpenMMSystem
 
-from openmm import *
+from pwem.convert import cifToPdb
 
 
 class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
@@ -49,37 +49,17 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
     This protocol will start a Molecular Dynamics simulation with constant pH specified by user.
     """
     _label = 'constant pH system simulation'
-    _openmmApp = None
-    _openmmUnit = None
-
-    _constantPH = None
-    _refEnergyFinder = None
 
     stepsExecutionMode = params.STEPS_PARALLEL
-    ASP_VAR = {1: ['ASP', 'ASH']}
-    GLU_VAR = {1: ['GLU', 'GLH']}
-    CYS_VAR = {1: ['CYS', 'CYX']}
-    HID_VAR = {1: ['HIP', 'HID']}
-    HIE_VAR = {1: ['HIP', 'HIE']}
-    LYS_VAR = {1: ['LYS', 'LYN']}
 
-    EXPLICIT_PARAMS = None
-    IMPLICIT_PARAMS = None
 
-    def setOpenMMParams(cls):
-        """Initialize EXPLICIT_PARAMS and IMPLICIT_PARAMS after lazy-loading OpenMM."""
-        app, unit = cls.importOpenmm()
-        cls.EXPLICIT_PARAMS = dict(
-            nonbondedMethod=app.PME,
-            nonbondedCutoff=0.9 * unit.nanometers,
-            constraints=app.HBonds,
-            hydrogenMass=1.5 * unit.amu
-        )
-        cls.IMPLICIT_PARAMS = dict(
-            nonbondedMethod=app.CutoffNonPeriodic,
-            nonbondedCutoff=2.0 * unit.nanometers,
-            constraints=app.HBonds
-        )
+    IMPLICIT_SOLVENT_MAP = {
+        'obc1': 'implicit/amber99_obc.xml',
+        'obc2': 'implicit/amber99_obc2.xml',
+        'gbn': 'implicit/gbn.xml',
+        'gbn2': 'implicit/gbn2.xml',
+        'hct': 'implicit/hct.xml'
+    }
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineMinimization(self, form):
@@ -101,7 +81,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
                                'VariableLangevin'],
                       help='http://docs.openmm.org/latest/userguide/theory/04_integrators.html')
 
-        form.addParam('stepSize', params.FloatParam, default=0.004, label="Step size for integration (ps): ",
+        form.addParam('stepSize', params.FloatParam, default=0.002, label="Step size for integration (ps): ",
                       condition='not integrator in [5, 6]',
                       help='The step size with which to integrate the system (in picoseconds)')
         form.addParam('fricCoef', params.FloatParam, default=1, label="Friction coefficient (1/ps): ",
@@ -122,9 +102,6 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
                       help='Add MonteCarlo Barostat to run a NPT simulation')
         form.addParam('pressure', params.FloatParam, default=1, label="Pressure (bar): ", condition='addBarostat',
                       help='The default pressure acting on the system (in bar)')
-        form.addParam('barFreq', params.IntParam, default=25, label="Barostat frequency: ",
-                      condition='addBarostat',
-                      help='The frequency at which Monte Carlo pressure changes should be attempted (in time steps)')
         return form
 
     def _defineParams(self, form):
@@ -140,8 +117,6 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         form.addSection(label=Message.LABEL_INPUT)
         form.addParam('inputSystem', params.PointerParam, label="Input structure: ", allowsNull=False,
                       important=True, pointerClass='OpenMMSystem', help='OpenMMSystem to execute the simulation over')
-        form.addParam('nSteps', params.IntParam, default=10000, label="Number of simulation steps: ",
-                      help='Number of steps for simulation')
 
         phGroup = form.addGroup('pH ')
         phGroup.addParam('singlePH', params.BooleanParam, default=True, label="Use one single pH value: ",
@@ -150,6 +125,47 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
                       help='The pH value to use.')
         phGroup.addParam('manyPH', params.StringParam, default='6.5, 7.0, 7.5, 8.0, 8.5', label="pH values: ", condition='not singlePH',
                       help='The pH values to use, separated with commas.')
+
+        ffGroup = form.addGroup('Force Field Parameters')
+        ffGroup.addParam('implicitSolvent', params.EnumParam, default=0,
+                         choices=['obc1', 'obc2', 'gbn', 'gbn2', 'hct'],
+                         label='Implicit solvent model: ',
+                         help='Implicit solvent to use for constant pH simulation.')
+        ffGroup.addParam('explicitCutoff', params.FloatParam, default=0.9, label="Explicit cutoff (nm)",
+                         expertLevel=params.LEVEL_ADVANCED,
+                         help='Cutoff distance for nonbonded interactions in explicit solvent')
+        ffGroup.addParam('implicitCutoff', params.FloatParam, default=2.0, label="Implicit cutoff (nm)",
+                         expertLevel=params.LEVEL_ADVANCED,
+                         help='Cutoff distance for nonbonded interactions in implicit solvent')
+        ffGroup.addParam('hydrogenMass', params.FloatParam, default=1.5, label="Hydrogen mass (amu)",
+                         expertLevel=params.LEVEL_ADVANCED,
+                         help='Mass of hydrogens to use in simulations (can accelerate integration)')
+        ffGroup.addParam('constraints', params.EnumParam, default=1,
+                         label="Forcefield constraints",
+                         choices=['None', 'HBonds', 'AllBonds', 'HAngles'],
+                         help='Optional bond/angle constraints for OpenMM. '
+                              'http://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
+
+        simGroup = form.addGroup('Simulation Steps')
+        simGroup.addParam('relaxSteps', params.IntParam, default=500, label="Relaxation steps",
+                          expertLevel=params.LEVEL_ADVANCED,
+                          help='Number of steps for initial relaxation of the system')
+        simGroup.addParam('equilSteps', params.IntParam, default=100, label="Equilibration steps",
+                          expertLevel=params.LEVEL_ADVANCED,
+                          help='Number of equilibration cycles')
+        simGroup.addParam('stepEquil', params.IntParam, default=1, label="Steps per equilibration cycle",
+                          expertLevel=params.LEVEL_ADVANCED,
+                          help='Number of MD steps per equilibration cycle')
+        simGroup.addParam('prodSteps', params.IntParam, default=10000, label="Production steps",
+                          help='Number of production cycles')
+        simGroup.addParam('stepProd', params.IntParam, default=1, label="Steps per production cycle",
+                          expertLevel=params.LEVEL_ADVANCED,
+                          help='Number of MD steps per production cycle')
+
+        titrGroup = form.addGroup('Titration')
+        titrGroup.addParam('residuesToTitrate', params.StringParam, default='ASP, GLU, CYS, HIS, LYS',
+                           label="Residues to titrate",
+                           help='Residues that will be considered for constant pH titration')
 
         mGroup = form.addGroup('Minimization')
         self._defineMinimization(mGroup)
@@ -165,61 +181,91 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
 
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
-      self._insertFunctionStep(self.prepareTitrattionStep)
+      self._insertFunctionStep(self.createParamsFileStep)
       self._insertFunctionStep(self.productionRunStep)
-      #if self.useOpenmmdl.get() and self.inputSystem.get().getLigTopologyFile():
-      #  self._insertFunctionStep(self.analyzeStep)
-      #self._insertFunctionStep(self.createOutputStep)
-      pass
 
-    def prepareTitrationStep(self):
-        ConstantPH, ReferenceEnergyFinder = Plugin.importScripts()
-        app, unit = self.importOpenmm()
+    def createParamsFileStep(self):
+        """Write simulation parameters to TXT file."""
+        paramsFile = self.getParamsFile()
+        with open(paramsFile, 'w') as f:
+            # Imports in script
+            home = Plugin.getVar(OPENMM_DIC['home'])
+            scripts_dir = os.path.join(home, 'openmm-cph')
 
-        cifFile = self.inputSystem.get().getCifFile()
-        structure = app.MMCIFFile(cifFile)
-        topology = structure.topology
+            f.write(f"constantPHScript = {os.path.abspath(os.path.join(scripts_dir, 'constantph.py'))}\n")
+            f.write(f"referenceEnergyScript = {os.path.abspath(os.path.join(scripts_dir, 'reference_energy.py'))}\n")
 
-        variants, referenceEnergies = self.getVarsAndRefEnergies(topology)
-        
-        #ph values
-        if self.singlePH.get() :
-            ph = self.onePH.get()
-        else:
-            ph = self.getListOfPH()
-        #force fields
+            # Input system
+            f.write(f"inputPdb = {self.getStructureFile()}\n")
 
-        self.setOpenMMParams()
+            # Force fields (assuming methods exist to get these)
+            f.write(f"explicitFF = {self.inputSystem.get().getForceField()}\n")
+            f.write(f"explicitSolvent = {self.inputSystem.get().getWaterForceField()}\n")
+            f.write(f"implicitFF = {self.inputSystem.get().getForceField()}\n")
+            solventKey = self.getEnumText("implicitSolvent")
+            implicitFF_file = self.IMPLICIT_SOLVENT_MAP[solventKey]
+            f.write(f"implicitSolvent = {implicitFF_file}\n")
 
-        explicitFFfiles, implicitFFfiles = self.getFFFiles()
-        app, unit = self.importOpenmm()
-        explicitFF = app.ForceField(*explicitFFfiles)
-        implicitFF = app.ForceField(*implicitFFfiles)
-        explicitParams = self.EXPLICIT_PARAMS
-        implicitParams = self.IMPLICIT_PARAMS
-        #integrators
-        integrator, relaxationIntegrator = self.getIntegrators()
+            f.write(f"constraints = {self.constraints.get()}\n")
 
-        cph = ConstantPH(topology, structure.positions, ph, explicitFF, implicitFF,
-                         variants, referenceEnergies, 100, explicitParams, implicitParams, integrator, relaxationIntegrator)
+            # Cutoffs and hydrogen mass
+            f.write(f"explicitCutoff = {self.explicitCutoff.get()}\n")
+            f.write(f"implicitCutoff = {self.implicitCutoff.get()}\n")
+            f.write(f"hydrogenMass = {self.hydrogenMass.get()}\n")
 
-        #barostat
-        if self.addBarostat.get():
-            app, unit = self.importOpenmm()
-            cph.simulation.system.addForce(app.MonteCarloBarostat(self.pressure.get() * unit.bar,
-                                                                  self.temperature.get() * unit.kelvin))
-            cph.simulation.context.reinitialize(preserveState=True)
+            # Simulation steps
+            f.write(f"relaxSteps = {self.relaxSteps.get()}\n")
+            f.write(f"equilSteps = {self.equilSteps.get()}\n")
+            f.write(f"stepEquil = {self.stepEquil.get()}\n")
+            f.write(f"prodSteps = {self.prodSteps.get()}\n")
+            f.write(f"stepProd = {self.stepProd.get()}\n")
 
-        #minimize
-        if self.addMinimization.get():
-            print("Minimizing energy...")
-            app, unit = self.importOpenmm()
-            cph.simulation.minimizeEnergy(tolerance=self.minimTol.get() * unit.kilojoules_per_mole,
-                                          maxIterations=self.maxIter.get())
-            print("Energy minimization complete.")
+            # Residues to titrate
+            f.write(f"residuesToTitrate = {self.residuesToTitrate.get()}\n")
+
+            home = Plugin.getVar(OPENMM_DIC['home'])
+            aspPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/ASP.pdb')
+            gluPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/GLU.pdb')
+            cysPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/CYS.pdb')
+            hisPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/HIS.pdb')
+            lysPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/LYS.pdb')
+            # Reference models
+            f.write(f"aspModel = {aspPDB}\n")
+            f.write(f"gluModel = {gluPDB}\n")
+            f.write(f"hisModel = {hisPDB}\n")
+            f.write(f"cysModel = {cysPDB}\n")
+            f.write(f"lysModel = {lysPDB}\n")
+
+            # pH values
+            f.write(f"singlePH = {self.singlePH.get()}\n")
+            if (self.singlePH.get() ):
+                f.write(f"onePH = {self.onePH.get()}\n")
+            else:
+                f.write(f"manyPH = {self.manyPH.get()}\n")
+
+            # Minimization
+            f.write(f"addMinimization = {str(self.addMinimization.get())}\n")
+            f.write(f"minimTol = {self.minimTol.get()}\n")
+            f.write(f"maxIter = {self.maxIter.get()}\n")
+
+            # Barostat
+            f.write(f"addBarostat = {str(self.addBarostat.get())}\n")
+            if self.addBarostat.get():
+                f.write(f"pressure = {self.pressure.get()}\n")
+
+            # Integrator
+            f.write(f"integrator = {self.getEnumText('integrator')}\n")
+            f.write(f"stepSize = {self.stepSize.get()}\n")
+            f.write(f"fricCoef = {self.fricCoef.get()}\n")
+            f.write(f"temperature = {self.temperature.get()}\n")
+            f.write(f"colFreq = {self.colFreq.get()}\n")
+            f.write(f"errTol = {self.errTol.get()}\n")
+
+        print(f"Parameters file created at: {paramsFile}")
 
     def productionRunStep(self):
-        pass #todo prodction run
+        paramsFile = self.getParamsFile()
+        Plugin.runScript(self, 'openmmConstantpH.py', args=f'--params {paramsFile}', env=OPENMM_DIC, cwd=self._getPath())
 
 
     def createOutputStep(self): #todo this when i see how and if it works
@@ -262,147 +308,6 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
       return ws
 
     # --------------------------- UTILS functions -----------------------------------
-    @classmethod
-    def importOpenmm(cls):
-        """Lazy import OpenMM modules only when needed."""
-        if cls._openmm_app and cls._openmm_unit:
-            return cls._openmm_app, cls._openmm_unit
-
-        try:
-            import openmm.app as app
-            import openmm.unit as unit
-        except ModuleNotFoundError:
-            # Dynamically add site-packages from OpenMM environment
-            home = cls.getVar(OPENMM_DIC['home'])
-            env_path = os.path.join(home, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}",
-                                    "site-packages")
-            if os.path.exists(env_path):
-                sys.path.insert(0, env_path)
-                import importlib
-                app = importlib.import_module("openmm.app")
-                unit = importlib.import_module("openmm.unit")
-            else:
-                raise ModuleNotFoundError(f"OpenMM environment not found at {env_path}")
-        cls._openmmApp = app
-        cls._openmmUnit = unit
-        return app, unit
-
-    @classmethod
-    def importScripts(cls):
-
-        if cls._constantPH and cls._refEnergyFinder:
-            return cls._constantPH, cls._refEnergyFinder
-
-        import os, sys
-
-        home = cls.getVar(OPENMM_DIC['home'])
-        cph_path = os.path.join(home, "openmm-cph")
-
-        if not os.path.exists(cph_path):
-            raise FileNotFoundError(f"openmm-cph not found at {cph_path}")
-
-        if cph_path not in sys.path:
-            sys.path.insert(0, cph_path)
-
-        try:
-            from constantph import ConstantPH
-            from reference_energy import ReferenceEnergyFinder
-        except Exception as e:
-            raise ImportError(f"Could not import ConstantPH modules: {e}")
-
-        cls._constantPH = ConstantPH
-        cls._refEnergyFinder = ReferenceEnergyFinder
-
-        return ConstantPH, ReferenceEnergyFinder
-
-    def getListOfPH(self):
-      userInput = self.manyPH.get()
-      listPH = userInput.split(',')
-      return listPH
-
-    def getIntegrators(self):
-        temperature = self.temperature.get() * kelvin
-        stepSize = self.stepSize.get() * picoseconds
-        fricCoef = self.fricCoef.get() / picosecond
-        app, unit = self.importOpenmm()
-        integrator = app.LangevinIntegrator(temperature, fricCoef, stepSize)
-        relaxationIntegrator = app.LangevinIntegrator(temperature, 10.0 / unit.picosecond, 0.002 * unit.picoseconds)
-        return integrator, relaxationIntegrator
-
-    def computeReferenceEnergies(self, pdbFile, variantsDict, targetpKa):
-        print(f"Computing reference energies for {pdbFile} (target pKa={targetpKa})")
-        pdb = PDBFile(pdbFile)
-        referenceEnergies = {index: [0.0] * len(states) for index, states in variantsDict.items()}
-
-        integrator, relaxationIntegrator = self.getIntegrators()
-
-        cph = ConstantPH(pdb.topology, pdb.positions, 7.0,
-                         explicitFF, implicitFF,
-                         variantsDict, referenceEnergies, 250,
-                         self.EXPLICIT_PARAMS, self.IMPLICIT_PARAMS,
-                         integrator, relaxationIntegrator)
-
-        finder = ReferenceEnergyFinder(cph, targetpKa, TEMPERATURE)
-
-        total_iterations = 20000
-        chunk = 200
-        for start in range(0, total_iterations, chunk):
-            print(f"  Iterations {start}?{start + chunk}...")
-            finder.findReferenceEnergies(iterations=chunk, substeps=10)
-
-        ref_energies = {index: cph.titrations[index].referenceEnergies for index in variantsDict}
-        print(f"Reference energies for {pdbFile} computed.")
-        return ref_energies
-
-    def getVarsAndRefEnergies(self, structure):
-        referenceEnergies = {}
-        variants = {}
-        #get the variants energies
-        home = Plugin.getVar(OPENMM_DIC['home'])
-        aspPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/ASP.pdb')
-        aspRefEnergies = computeReferenceEnergies(aspPDB, self.ASP_VAR, 3.9)
-        gluPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/GLU.pdb')
-        gluRefEnergies = computeReferenceEnergies(glupPDB, self.GLU_VAR, 4.2)
-        cysPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/CYS.pdb')
-        cysRefEnergies = computeReferenceEnergies(cysPDB, self.CYS_VAR, 8.3)
-        hisPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/HIS.pdb')
-        hidRefEnergies = computeReferenceEnergies(hisPDB, self.HID_VAR, 7.1)
-        hieRefEnergies = computeReferenceEnergies(hiePDB, self.HIE_VAR, 6.5)
-        lysPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/LYS.pdb')
-        lysRefEnergies = computeReferenceEnergies(lysPDB, self.LYS_VAR, 10.5)
-        
-        #prepare titration
-        for residue in structure.residues:
-            if residue.name == 'ASP':
-                variants[residue.index] = ['ASP', 'ASH']
-                referenceEnergies[residue.index] = aspRefEnergies[1]
-            elif residue.name == 'GLU':
-                variants[residue.index] = ['GLU', 'GLH']
-                referenceEnergies[residue.index] = gluRefEnergies[1]
-            elif residue.name == 'CYS':
-                variants[residue.index] = ['CYS', 'CYX']
-                referenceEnergies[residue.index] = cysRefEnergies[1]
-            elif residue.name == 'HIS':
-                variants[residue.index] = ['HIP', 'HID', 'HIE']
-                referenceEnergies[residue.index] = [0.0*kilojoules_per_mole, 
-                                                    hidRefEnergies[1][1], 
-                                                    hieRefEnergies[1][1]]
-            elif residue.name == 'LYS':
-                variants[residue.index] = ['LYS', 'LYN']
-                referenceEnergies[residue.index] = lysRefEnergies[1]
-            
-        return variants, referenceEnergies
-
-    def getWaterModel(self, wFF):
-      model = 'tip3p'
-      if 'spce' in wFF:
-        model = 'spce'
-      elif 'tip4p' in wFF:
-        model = 'tip4pew'
-      elif 'tip5p' in wFF:
-        model = 'tip5p'
-      return model
-
     def getFFFiles(self):
       system = self.inputSystem.get()
       return system.getForceField(), system.getWaterForceField()
@@ -415,7 +320,10 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
       return os.path.abspath(self._getExtraPath('simulationParams.txt'))
 
     def getStructureFile(self):
-      return os.path.abspath(self.inputSystem.get().getCifFile())
+      name = os.path.splitext(os.path.basename(self.inputSystem.get().getCifFile()))[0]
+      pdbFile = self._getExtraPath(f'{name}.pdb')
+      cifToPdb(os.path.abspath(self.inputSystem.get().getCifFile()), (pdbFile))
+      return os.path.abspath(pdbFile)
 
     def getSystemFile(self):
       return os.path.abspath(self.inputSystem.get().getSerieFile())
