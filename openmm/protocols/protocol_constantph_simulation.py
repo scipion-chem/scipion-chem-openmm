@@ -115,6 +115,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
                        help="Add a list of GPU devices that can be used")
 
         form.addSection(label=Message.LABEL_INPUT)
+
         form.addParam('inputSystem', params.PointerParam, label="Input structure: ", allowsNull=False,
                       important=True, pointerClass='OpenMMSystem', help='OpenMMSystem to execute the simulation over')
 
@@ -161,6 +162,9 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         simGroup.addParam('stepProd', params.IntParam, default=1, label="Steps per production cycle",
                           expertLevel=params.LEVEL_ADVANCED,
                           help='Number of MD steps per production cycle')
+        #todo use this
+        simGroup.addParam('useOpenmmdl', params.BooleanParam, default=True, label="Analyze trajectory with OpenMMDL: ",
+                        help='Whether to analyze the trajectory with OpenMMDL')
 
         titrGroup = form.addGroup('Titration')
         titrGroup.addParam('residuesToTitrate', params.StringParam, default='ASP, GLU, CYS, HIS, LYS',
@@ -183,6 +187,9 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
     def _insertAllSteps(self):
       self._insertFunctionStep(self.createParamsFileStep)
       self._insertFunctionStep(self.productionRunStep)
+      if self.useOpenmmdl.get() and self.inputSystem.get().getLigTopologyFile():
+          self._insertFunctionStep(self.analyzeStep)
+      self._insertFunctionStep(self.createOutputStep)
 
     def createParamsFileStep(self):
         """Write simulation parameters to TXT file."""
@@ -198,13 +205,15 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
             # Input system
             f.write(f"inputPdb = {self.getStructureFile()}\n")
 
-            # Force fields (assuming methods exist to get these)
+            # Force fields
             f.write(f"explicitFF = {self.inputSystem.get().getForceField()}\n")
             f.write(f"explicitSolvent = {self.inputSystem.get().getWaterForceField()}\n")
             f.write(f"implicitFF = {self.inputSystem.get().getForceField()}\n")
             solventKey = self.getEnumText("implicitSolvent")
             implicitFF_file = self.IMPLICIT_SOLVENT_MAP[solventKey]
             f.write(f"implicitSolvent = {implicitFF_file}\n")
+            f.write(f"ligandFile = {os.path.abspath(self.inputSystem.get().getLigTopologyFile())}\n")
+            f.write(f"ligandFF = {os.path.abspath(self._getExtraPath('ligandFF.xml'))}\n")
 
             f.write(f"constraints = {self.constraints.get()}\n")
 
@@ -238,10 +247,8 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
 
             # pH values
             f.write(f"singlePH = {self.singlePH.get()}\n")
-            if (self.singlePH.get() ):
-                f.write(f"onePH = {self.onePH.get()}\n")
-            else:
-                f.write(f"manyPH = {self.manyPH.get()}\n")
+            f.write(f"onePH = {self.onePH.get()}\n")
+            f.write(f"manyPH = {self.manyPH.get()}\n")
 
             # Minimization
             f.write(f"addMinimization = {str(self.addMinimization.get())}\n")
@@ -260,6 +267,18 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
             f.write(f"temperature = {self.temperature.get()}\n")
             f.write(f"colFreq = {self.colFreq.get()}\n")
             f.write(f"errTol = {self.errTol.get()}\n")
+
+            #Output paths
+            sysName = self.getSystemName()
+            trajFile = self._getPath(f"{sysName}.dcd")
+            f.write(f"trajFile = {os.path.abspath(trajFile)}\n")
+            logFile = self._getPath("log.txt")
+            f.write(f"logFile = {os.path.abspath(logFile)}\n")
+            finalPdb = self._getPath(f"{sysName}.pdb")
+            f.write(f"finalPdb = {os.path.abspath(finalPdb)}\n")
+            finalCif = self._getPath(f"{sysName}.cif")
+            f.write(f"finalCif = {os.path.abspath(finalCif)}\n")
+
 
         print(f"Parameters file created at: {paramsFile}")
 
@@ -282,6 +301,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
       outSystem.setTrajectoryFile(outDcdFile)
 
+      #todo right now this wouldnt work
       ligFile = self.inputSystem.get().getLigTopologyFile()
       if ligFile:
         outSystem.setLigTopologyFile(ligFile)
@@ -291,6 +311,18 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         outSystem.setOpenmmdlDir(anaDir)
 
       self._defineOutputs(outputSystem=outSystem)
+
+    def analyzeStep(self):
+        '''Run OpenMMDL analysis'''
+        oDir = self._getExtraPath('OpenMMDL')
+        if not os.path.exists(oDir):
+          os.mkdir(oDir)
+        systemName = self.getSystemName()
+        outTopFile, outDcdFile = os.path.abspath(self._getPath(f'{systemName}.pdb')), \
+                                 os.path.abspath(self._getPath(f'{systemName}.dcd'))
+
+        args = f'-t {outTopFile} -d {outDcdFile} -n LIG -c {self.numberOfThreads.get()}'
+        pwchemPlugin.runCondaCommand(self, args, OPENMM_DIC, 'openmmdl_analysis', cwd=oDir)
 
     # --------------------------- INFO functions -----------------------------------
     def _summary(self):
@@ -330,3 +362,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
 
     def getSystemName(self):
       return self.inputSystem.get().getSystemName()
+
+    def getNFrames(self):
+      nFrames = (self.prodSteps.get()*self.stepProd.get()) // 1000
+      return nFrames

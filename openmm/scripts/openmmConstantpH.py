@@ -15,18 +15,22 @@ from openmm.app import *
 from openmm.unit import *
 import os, sys
 
+from openff.toolkit.topology import Molecule
+from openff.toolkit.typing.engines.smirnoff import ForceField as offForceField
+from openff.toolkit.utils import get_data_file_path
+
 # ---------------------------
 # Helpers
 # ---------------------------
 
-def parse_ph_values(singlePH, onePH, manyPH):
+def parsePhValues(singlePH, onePH, manyPH):
     if singlePH:
         return [onePH]
     else:
         return [float(x.strip()) for x in manyPH.split(',')]
 
 
-def parse_txt_config(filename):
+def parseTxtConfig(filename):
     params = {}
     with open(filename) as f:
         for line in f:
@@ -46,142 +50,142 @@ def parse_txt_config(filename):
                     params[k] = [x.strip() for x in v.split(',')] if ',' in v else v
     return params
 
+def generateLigandFF(ligFile, ligFF):
+    sdf = get_data_file_path(ligFile)
+    ligand = Molecule(sdf)
+
+    if ligand.n_conformers == 0:
+        print("[INFO] No conformers found, generating 3D conformer...")
+        ligand.generate_conformers(n_conformers=1)
+
+    offFF = offForceField("openff-2.1.0.offxml")
+    system = offFF.create_openmm_system(ligand.to_topology())
+
+    with open(ligFF, "w") as f:
+        f.write(XmlSerializer.serialize(system))
+
+    print(f"[INFO] Ligand XML force field saved as: {ligFF}")
 
 # ---------------------------
 # Integrator factory
 # ---------------------------
-def create_integrator(params, temperature):
-    step_size = params.get('stepSize', 0.004) * picoseconds
+def createIntegrator(params, temperature):
+    stepSize = params.get('stepSize', 0.004) * picoseconds
     fric = params.get('fricCoef', 1.0) / picosecond
-    col_freq = params.get('colFreq', 1.0) / picosecond
-    err_tol = params.get('errTol', 0.001)
+    colFreq = params.get('colFreq', 1.0) / picosecond
+    errTol = params.get('errTol', 0.001)
 
-    integrator_name = params.get('integrator', 'Langevin')
+    integratorName = params.get('integrator', 'Langevin')
 
-    print(f"[integrator] Creating integrator '{integrator_name}' stepSize={step_size}, temp={temperature}")
-    if integrator_name == 'Verlet':
-        return VerletIntegrator(step_size)
-    elif integrator_name == 'Langevin':
-        return LangevinIntegrator(temperature, fric, step_size)
-    elif integrator_name == 'LangevinMiddle':
-        return LangevinMiddleIntegrator(temperature, fric, step_size)
-    elif integrator_name == 'NoseHoover':
-        return NoseHooverIntegrator(temperature, 1.0 / picosecond, step_size)
-    elif integrator_name == 'Brownian':
-        return BrownianIntegrator(temperature, step_size)
-    elif integrator_name == 'VariableVerlet':
-        return VariableVerletIntegrator(step_size, err_tol)
-    elif integrator_name == 'VariableLangevin':
-        return VariableLangevinIntegrator(temperature, fric, step_size, err_tol)
+    print(f"[integrator] Creating integrator '{integratorName}' stepSize={stepSize}, temp={temperature}")
+    if integratorName == 'Verlet':
+        return VerletIntegrator(stepSize)
+    elif integratorName == 'Langevin':
+        return LangevinIntegrator(temperature, fric, stepSize)
+    elif integratorName == 'LangevinMiddle':
+        return LangevinMiddleIntegrator(temperature, fric, stepSize)
+    elif integratorName == 'NoseHoover':
+        return NoseHooverIntegrator(temperature, 1.0 / picosecond, stepSize)
+    elif integratorName == 'Brownian':
+        return BrownianIntegrator(temperature, stepSize)
+    elif integratorName == 'VariableVerlet':
+        return VariableVerletIntegrator(stepSize, errTol)
+    elif integratorName == 'VariableLangevin':
+        return VariableLangevinIntegrator(temperature, fric, stepSize, errTol)
     else:
-        raise ValueError(f"Unknown integrator: {integrator_name}")
+        raise ValueError(f"Unknown integrator: {integratorName}")
 
 
-def compute_ref(model_file, variants_dict, target_pKa, params,
-                explicitFF, implicitFF, explicit_params, implicit_params,
-                integrator, relaxation_integrator):
+def computeRef(modelFile, variantsDict, targetPKa, params,
+                explicitFF, implicitFF, explicitParams, implicitParams,
+                integrator, relaxationIntegrator):
     """
     Compute reference energies for a model residue (ASP, GLU, etc.) for constant pH simulation.
 
     Returns a dict: {index: [energy_state0, energy_state1, ...]}
     """
-    print(f"[compute_ref] Loading model PDB: {model_file}")
-    pdb = PDBFile(model_file)
+    pdb = PDBFile(modelFile)
 
-    print("[compute_ref] Initializing ConstantPH for reference computation...")
     cph = ConstantPH(
         pdb.topology,
         pdb.positions,
-        [7.0],  # arbitrary pH for reference computation
+        [7.0],
         explicitFF,
         implicitFF,
-        variants_dict,
-        {index: [0.0] * len(states) for index, states in variants_dict.items()},
-        250,  # short "relaxation" steps
-        explicit_params,
-        implicit_params,
+        variantsDict,
+        {index: [0.0] * len(states) for index, states in variantsDict.items()},
+        250,
+        explicitParams,
+        implicitParams,
         integrator,
-        relaxation_integrator
+        relaxationIntegrator
     )
 
-    # quick positions print (first 10 atoms)
-    try:
-        positions = cph.simulation.context.getState(getPositions=True).getPositions()
-        print(f"[compute_ref] First positions (nm): {positions[:10]}")
-    except Exception as e:
-        print(f"[compute_ref] Warning: couldn't read positions: {e}")
-
     # Compute reference energies
-    print(f"[compute_ref] Starting ReferenceEnergyFinder for target pKa={target_pKa}")
-    finder = ReferenceEnergyFinder(cph, target_pKa, params.get('temperature', 300) * kelvin)
+    finder = ReferenceEnergyFinder(cph, targetPKa, params.get('temperature', 300) * kelvin)
 
-    total_iterations = params.get('ref_total_iterations', 20000)
-    chunk = params.get('ref_chunk', 200)
-    start_time = time.time()
-    for start in range(0, total_iterations, chunk):
-        print(f"[compute_ref] Running finder iterations {start}..{start+chunk-1}")
+    totalIterations = params['equilSteps'] * params['stepEquil']
+    chunk = params['relaxSteps']
+
+    startTime = time.time()
+    for start in range(0, totalIterations, chunk):
         finder.findReferenceEnergies(iterations=chunk, substeps=10)
-        # small sanity check: are positions finite?
         try:
             pos = cph.simulation.context.getState(getPositions=True).getPositions()
             for p in pos[:10]:
                 if math.isnan(p.x) or math.isnan(p.y) or math.isnan(p.z):
                     raise ValueError("NaN in positions during reference energy computation")
         except Exception as e:
-            print(f"[compute_ref] ERROR while checking positions: {e}")
+            print(f"[computeRef] ERROR while checking positions: {e}")
             raise
 
-    elapsed = time.time() - start_time
-    print(f"[compute_ref] Finished reference finder in {elapsed:.1f}s")
+    elapsed = time.time() - startTime
 
     # Extract reference energies
-    ref_energies = {index: cph.titrations[index].referenceEnergies for index in variants_dict}
-    print(f"[compute_ref] Reference energies keys: {list(ref_energies.keys())}")
-    return ref_energies
+    refenergies = {index: cph.titrations[index].referenceEnergies for index in variantsDict}
+    return refenergies
 
 
 # ---------------------------
 # Main simulation function
 # ---------------------------
 
-def run_constant_ph_simulation(params):
+def runConstantPhSimulation(params):
 
     print("\n--- Loading system ---")
     print(f"[params] inputPdb: {params.get('inputPdb')}")
     pdb = PDBFile(params['inputPdb'])
-    print("[run] PDB loaded. Topology residues:", sum(1 for _ in pdb.topology.residues()))
 
     print("[run] Creating force fields...")
-    print(f"  explicitFF: {params.get('explicitFF')}  explicitSolvent: {params.get('explicitSolvent')}")
-    explicitFF = ForceField(params['explicitFF'], params['explicitSolvent'])
+    #explicitFF = ForceField(params['explicitFF'], params['explicitSolvent'])
+    #todo this includes ligand ff
+    explicitFF = ForceField(params['explicitFF'], params['explicitSolvent'], params['ligandFF'])
     print("  explicit ForceField created.")
-    print(f"  implicitFF: {params.get('implicitFF')}  implicitSolvent: {params.get('implicitSolvent')}")
     implicitFF = ForceField(params['implicitFF'], params['implicitSolvent'])
     print("  implicit ForceField created.")
 
-    explicit_params = dict(
-        nonbondedMethod=PME,
+    explicitParams = dict( #todo this was PME why tf does it not work!?
+        nonbondedMethod=CutoffNonPeriodic,
         nonbondedCutoff=params['explicitCutoff'] * nanometers,
         constraints=params['constraints'],
         hydrogenMass=params['hydrogenMass'] * amu
     )
 
-    implicit_params = dict(
+    implicitParams = dict(
         nonbondedMethod=CutoffNonPeriodic,
         nonbondedCutoff=params['implicitCutoff'] * nanometers,
         constraints=params['constraints']
     )
 
-    print(f"[run] NB params explicit_cutoff={explicit_params['nonbondedCutoff']}, implicit_cutoff={implicit_params['nonbondedCutoff']}")
+    print(f"[run] NB params explicit_cutoff={explicitParams['nonbondedCutoff']}, implicit_cutoff={implicitParams['nonbondedCutoff']}")
 
     temperature = params['temperature'] * kelvin
-    print(f"[run] Simulation temperature: {temperature}")
 
     # ---------------------------
     # Create integrators
     # ---------------------------
-    integrator = create_integrator(params, temperature)
-    relaxation_integrator = create_integrator(params, temperature)  # Can have different params if needed
+    integrator = createIntegrator(params, temperature)
+    relaxationIntegrator = createIntegrator(params, temperature)  # Can have different params if needed
     print("[run] Integrators created.")
 
     # -----------------------------------
@@ -189,129 +193,170 @@ def run_constant_ph_simulation(params):
     # -----------------------------------
 
     print("\n--- Computing reference energies ---")
-    ref_energies = {}
-    variants_dict = {}
+    refenergies = {}
+    variantsDict = {}
 
     # ASP
     if 'ASP' in params['residuesToTitrate']:
         print("[run] Computing ASP reference energy...")
-        ref_energies['ASP'] = compute_ref(
+        refenergies['ASP'] = computeRef(
             params['aspModel'],
             {1: ['ASP', 'ASH']},
             3.9,
             params,
             explicitFF, implicitFF,
-            explicit_params, implicit_params,
-            integrator, relaxation_integrator
+            explicitParams, implicitParams,
+            integrator, relaxationIntegrator
         )[1]
-        variants_dict['ASP'] = ['ASP', 'ASH']
+        variantsDict['ASP'] = ['ASP', 'ASH']
 
     # GLU
     if 'GLU' in params['residuesToTitrate']:
         print("[run] Computing GLU reference energy...")
-        ref_energies['GLU'] = compute_ref(
+        refenergies['GLU'] = computeRef(
             params['gluModel'],
             {1: ['GLU', 'GLH']},
             4.2,
             params,
             explicitFF, implicitFF,
-            explicit_params, implicit_params,
-            integrator, relaxation_integrator
+            explicitParams, implicitParams,
+            integrator, relaxationIntegrator
         )[1]
-        variants_dict['GLU'] = ['GLU', 'GLH']
+        variantsDict['GLU'] = ['GLU', 'GLH']
 
     # CYS
     if 'CYS' in params['residuesToTitrate']:
         print("[run] Computing CYS reference energy...")
-        ref_energies['CYS'] = compute_ref(
+        refenergies['CYS'] = computeRef(
             params['cysModel'],
             {1: ['CYS', 'CYX']},
             7.1,
             params,
             explicitFF, implicitFF,
-            explicit_params, implicit_params,
-            integrator, relaxation_integrator
+            explicitParams, implicitParams,
+            integrator, relaxationIntegrator
         )[1]
-        variants_dict['CYS'] = ['CYS', 'CYX']
+        variantsDict['CYS'] = ['CYS', 'CYX']
 
     # HIS (3 states)
     if 'HIS' in params['residuesToTitrate']:
         print("[run] Computing HIS reference energies (HID/HIE)...")
-        hid = compute_ref(
+        hid = computeRef(
             params['hisModel'],
             {1: ['HIP', 'HID']},
             7.1,
             params,
             explicitFF, implicitFF,
-            explicit_params, implicit_params,
-            integrator, relaxation_integrator
+            explicitParams, implicitParams,
+            integrator, relaxationIntegrator
         )[1]
 
-        hie = compute_ref(
+        hie = computeRef(
             params['hisModel'],
             {1: ['HIP', 'HIE']},
             6.5,
             params,
             explicitFF, implicitFF,
-            explicit_params, implicit_params,
-            integrator, relaxation_integrator
+            explicitParams, implicitParams,
+            integrator, relaxationIntegrator
         )[1]
 
-        ref_energies['HIS'] = [
+        refenergies['HIS'] = [
             0.0 * kilojoules_per_mole,
             hid[1],
             hie[1]
         ]
-        variants_dict['HIS'] = ['HIP', 'HID', 'HIE']
+        variantsDict['HIS'] = ['HIP', 'HID', 'HIE']
 
     # LYS
     if 'LYS' in params['residuesToTitrate']:
         print("[run] Computing LYS reference energy...")
-        ref_energies['LYS'] = compute_ref(
+        refenergies['LYS'] = computeRef(
             params['lysModel'],
             {1: ['LYS', 'LYN']},
             10.5,
             params,
             explicitFF, implicitFF,
-            explicit_params, implicit_params,
-            integrator, relaxation_integrator
+            explicitParams, implicitParams,
+            integrator, relaxationIntegrator
         )[1]
-        variants_dict['LYS'] = ['LYS', 'LYN']
+        variantsDict['LYS'] = ['LYS', 'LYN']
 
     # -----------------------------------
     # Assign residues
     # -----------------------------------
-    ph_values = parse_ph_values(
+    phValues = parsePhValues(
         params['singlePH'], params['onePH'], params['manyPH']
     )
-    print(f"[run] pH values to run: {ph_values}")
+    print(f"[run] pH values to run: {phValues}")
 
-    sim_variants = {}
-    sim_ref_energies = {}
+    simVariants = {}
+    simRefenergies = {}
 
     for residue in pdb.topology.residues():
-        if residue.name in variants_dict:
-            sim_variants[residue.index] = variants_dict[residue.name]
-            sim_ref_energies[residue.index] = ref_energies[residue.name]
+        # Ignorar ligandos LIG
+        if residue.name == 'LIG':
+            print(f"[run] Ignoring ligand residue {residue.name} at index {residue.index}")
+            continue
+        if residue.name in variantsDict:
+            simVariants[residue.index] = variantsDict[residue.name]
+            simRefenergies[residue.index] = refenergies[residue.name]
 
     print("Titrated residues:")
-    for k, v in sim_variants.items():
+    for k, v in simVariants.items():
         print("  Residue", k, "->", v)
 
     # -----------------------------------
     # Build ConstantPH Simulation
     # -----------------------------------
+    #todo to test, ideally i want to keep ligands
+    modeller = Modeller(pdb.topology, pdb.positions)
 
+    # Remove ligands
+    ligands = [res for res in modeller.topology.residues() if res.name == 'LIG']
+    if ligands:
+        print(f"[run] Removing {len(ligands)} LIG residues")
+        modeller.delete(ligands)
+
+    # Use the filtered topology and positions in ConstantPH
+    filteredTopology = modeller.topology
+    filteredPositions = modeller.positions
+    #todo try to see if it works with normal pdb
     print("\n--- Creating simulation ---")
     cph = ConstantPH(
-        pdb.topology, pdb.positions, ph_values,
+        pdb.topology, pdb.positions, phValues,
         explicitFF, implicitFF,
-        sim_variants, sim_ref_energies,
+        simVariants, simRefenergies,
         params['relaxSteps'],
-        explicit_params, implicit_params,
-        integrator, relaxation_integrator
+        explicitParams, implicitParams,
+        integrator, relaxationIntegrator
     )
     print("[run] ConstantPH object created.")
+
+    trajFile = params['trajFile']
+    logFile = params['logFile']
+    finalPdb = params['finalPdb']
+    reportEvery = 1000
+
+    cph.simulation.reporters.append(DCDReporter(trajFile, reportEvery))
+    totalSteps = params['equilSteps'] * params['stepEquil'] + params['prodSteps'] * params['stepProd']
+    cph.simulation.reporters.append(
+        StateDataReporter(
+            logFile,
+            reportEvery,
+            step=True,
+            temperature=True,
+            potentialEnergy=True,
+            kineticEnergy=True,
+            totalEnergy=True,
+            volume=True,
+            progress=True,
+            remainingTime=True,
+            speed=True,
+            totalSteps=totalSteps,
+            separator='\t'
+        )
+    )
 
     if params.get('addBarostat', False):
         print("Adding barostat...")
@@ -324,7 +369,7 @@ def run_constant_ph_simulation(params):
     if params.get('addMinimization', True):
         print("Minimizing...")
         cph.simulation.minimizeEnergy(
-            tolerance=params['minimTol'] * kilojoules_per_mole,
+            tolerance=params['minimTol'] * kilojoules_per_mole / nanometer ,
             maxIterations=params['maxIter']
         )
         print("[run] Minimization finished.")
@@ -345,28 +390,35 @@ def run_constant_ph_simulation(params):
     # -----------------------------------
 
     print("\n--- Production ---")
-    for prod_idx in range(params['prodSteps']):
+    for prodIdx in range(params['prodSteps']):
         cph.simulation.step(params['stepProd'])
         cph.attemptMCStep(temperature)
 
-        # check positions quickly (first atoms)
         try:
             state = cph.simulation.context.getState(getPositions=True)
             positions = state.getPositions()
-            # check for NaNs in first 20 atoms
             for i, p in enumerate(positions[:20]):
                 if math.isnan(p.x) or math.isnan(p.y) or math.isnan(p.z):
-                    raise ValueError(f"NaN detected in position at prod step {prod_idx}, atom {i}")
+                    raise ValueError(f"NaN detected in position at prod step {prodIdx}, atom {i}")
         except Exception as e:
             print(f"[production] ERROR: {e}")
-            # re-raise to preserve stack trace if you want script to stop
             raise
 
-        if prod_idx % max(1, params.get('prodSteps') // 10) == 0:
-            states = [sim_variants[i][cph.titrations[i].currentIndex] for i in sim_variants]
-            print(f"[production] step {prod_idx+1}/{params['prodSteps']} pH: {cph.pH[cph.currentPHIndex]} states: {states}")
+        if prodIdx % max(1, params.get('prodSteps') // 10) == 0:
+            states = [simVariants[i][cph.titrations[i].currentIndex] for i in simVariants]
+            print(f"[production] step {prodIdx+1}/{params['prodSteps']} pH: {cph.pH[cph.currentPHIndex]} states: {states}")
 
     print("[run] Production finished successfully.")
+
+    state = cph.simulation.context.getState(getPositions=True)
+    with open(finalPdb, "w") as f:
+        PDBFile.writeFile(cph.simulation.topology, state.getPositions(), f)
+
+    finalCif = params['finalCif']
+    with open(finalCif, "w") as f:
+        PDBxFile.writeFile(cph.simulation.topology, state.getPositions(), f)
+
+    print("[run] Final snapshot written.")
 
 
 # ---------------------------
@@ -381,18 +433,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    params = parse_txt_config(args.params)
+    params = parseTxtConfig(args.params)
 
-    # optional: paths to constantph/reference_energy scripts (if you pass them in params)
-    constantph_path = params.get('constantPHScript')
-    reference_energy_path = params.get('referenceEnergyScript')
+    constantphPath = params.get('constantPHScript')
+    referenceEnergyPath = params.get('referenceEnergyScript')
 
-    if constantph_path:
-        scripts_dir = os.path.dirname(constantph_path)
-        if scripts_dir and scripts_dir not in sys.path:
-            sys.path.insert(0, scripts_dir)
+    if constantphPath:
+        scriptsDir = os.path.dirname(constantphPath)
+        if scriptsDir and scriptsDir not in sys.path:
+            sys.path.insert(0, scriptsDir)
 
-    # Import dynamically if needed (these files must be on sys.path)
     try:
         from constantph import ConstantPH
         from reference_energy import ReferenceEnergyFinder
@@ -401,4 +451,6 @@ if __name__ == "__main__":
         print("[startup] Make sure constantph.py and reference_energy.py are on sys.path or pass 'constantPHScript' in params.")
         raise
 
-    run_constant_ph_simulation(params)
+    generateLigandFF(params["ligandFile"], params["ligandFF"])
+
+    runConstantPhSimulation(params)
