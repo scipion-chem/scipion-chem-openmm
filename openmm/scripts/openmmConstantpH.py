@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """
-Parametrizable Constant pH Simulation in OpenMM (TXT config)
-Supports ASP, GLU, CYS, HIS (3-state) and LYS
-
-This version has extra prints for progress/debugging.
+Runs constant pH simulations
 """
 
 import argparse
@@ -43,10 +40,8 @@ def parseTxtConfig(filename):
                 params[k] = v.lower() == 'true'
             else:
                 try:
-                    # try numeric
                     params[k] = float(v) if '.' in v else int(v)
                 except ValueError:
-                    # list or string
                     params[k] = [x.strip() for x in v.split(',')] if ',' in v else v
     return params
 
@@ -99,11 +94,6 @@ def createIntegrator(params, temperature):
 def computeRef(modelFile, variantsDict, targetPKa, params,
                 explicitFF, implicitFF, explicitParams, implicitParams,
                 integrator, relaxationIntegrator):
-    """
-    Compute reference energies for a model residue (ASP, GLU, etc.) for constant pH simulation.
-
-    Returns a dict: {index: [energy_state0, energy_state1, ...]}
-    """
     pdb = PDBFile(modelFile)
 
     cph = ConstantPH(
@@ -141,7 +131,6 @@ def computeRef(modelFile, variantsDict, targetPKa, params,
 
     elapsed = time.time() - startTime
 
-    # Extract reference energies
     refenergies = {index: cph.titrations[index].referenceEnergies for index in variantsDict}
     return refenergies
 
@@ -157,9 +146,8 @@ def runConstantPhSimulation(params):
     pdb = PDBFile(params['inputPdb'])
 
     print("[run] Creating force fields...")
-    #explicitFF = ForceField(params['explicitFF'], params['explicitSolvent'])
+    explicitFF = ForceField(params['explicitFF'], params['explicitSolvent'])
     #todo this includes ligand ff
-    explicitFF = ForceField(params['explicitFF'], params['explicitSolvent'], params['ligandFF'])
     print("  explicit ForceField created.")
     implicitFF = ForceField(params['implicitFF'], params['implicitSolvent'])
     print("  implicit ForceField created.")
@@ -309,7 +297,6 @@ def runConstantPhSimulation(params):
     # -----------------------------------
     # Build ConstantPH Simulation
     # -----------------------------------
-    #todo to test, ideally i want to keep ligands
     modeller = Modeller(pdb.topology, pdb.positions)
 
     # Remove ligands
@@ -321,10 +308,10 @@ def runConstantPhSimulation(params):
     # Use the filtered topology and positions in ConstantPH
     filteredTopology = modeller.topology
     filteredPositions = modeller.positions
-    #todo try to see if it works with normal pdb
+    #todo it does not work with ligands
     print("\n--- Creating simulation ---")
     cph = ConstantPH(
-        pdb.topology, pdb.positions, phValues,
+        filteredTopology, filteredPositions, phValues,
         explicitFF, implicitFF,
         simVariants, simRefenergies,
         params['relaxSteps'],
@@ -420,6 +407,55 @@ def runConstantPhSimulation(params):
 
     print("[run] Final snapshot written.")
 
+    #print("[post] Re-attaching ligand to final system...")
+
+    # Extract ligand from original PDB
+    #ligand_atoms = [a for a in pdb.topology.atoms() if a.residue.name == 'LIG']
+    #if len(ligand_atoms) == 0:
+    #    raise RuntimeError("Ligand not found in input system. Residue name is not 'LIG'.")
+
+    #ligand_top = Topology()
+    #ligand_chain = ligand_top.addChain()
+    #ligand_res = ligand_top.addResidue("LIG", ligand_chain)
+
+    #ligand_pos = []
+    #for atom in ligand_atoms:
+    #    ligand_top.addAtom(atom.name, atom.element, ligand_res)
+    #    ligand_pos.append(pdb.positions[atom.index])
+
+    # Merge ConstantPH protein + ligand
+    #merged_top = Topology()
+    #merged_pos = []
+
+    # Protein
+    #for chain in cph.simulation.topology.chains():
+    #    new_chain = merged_top.addChain()
+    #    for res in chain.residues():
+    #        new_res = merged_top.addResidue(res.name, new_chain)
+    #        for atom in res.atoms():
+    #            merged_top.addAtom(atom.name, atom.element, new_res)
+    #            merged_pos.append(
+    #                cph.simulation.context.getState(getPositions=True).getPositions()[atom.index]
+    #            )
+
+    # Ligand
+    #lig_chain = merged_top.addChain("X")  # new chain
+    #lig_res = merged_top.addResidue("LIG", lig_chain)
+
+    #for atom in ligand_atoms:
+    #    merged_top.addAtom(atom.name, atom.element, lig_res)
+    #    merged_pos.append(pdb.positions[atom.index])
+
+    # Final merged system
+    #print("[post] Writing final merged PDB (protein + ligand)")
+    #with open(finalPdb, "w") as f:
+    #    PDBFile.writeFile(merged_top, merged_pos, f)
+
+    #with open(params['finalCif'], "w") as f:
+    #    PDBxFile.writeFile(merged_top, merged_pos, f)
+
+    #print("[run] Final snapshot written.")
+
 
 # ---------------------------
 # Entry point
@@ -451,6 +487,7 @@ if __name__ == "__main__":
         print("[startup] Make sure constantph.py and reference_energy.py are on sys.path or pass 'constantPHScript' in params.")
         raise
 
-    generateLigandFF(params["ligandFile"], params["ligandFF"])
+    #todo NO FUNCIONA CON LIGANDS
+    #generateLigandFF(params["ligandFile"], params["ligandFF"])
 
     runConstantPhSimulation(params)

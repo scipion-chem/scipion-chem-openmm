@@ -343,8 +343,8 @@ class OpenMMSystemPViewer(MDSystemPViewer):
     def getBarcodeTypes(self):
       system = self.getMDSystem()
       anaDir = system.getOpenmmdlDir()
-      if not os.path.exists(anaDir):
-        return []
+      if anaDir is None or not os.path.exists(anaDir):
+          return []
       else:
         anaDir = os.path.join(anaDir, 'Barcodes')
         types = []

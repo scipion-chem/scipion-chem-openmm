@@ -162,7 +162,6 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         simGroup.addParam('stepProd', params.IntParam, default=1, label="Steps per production cycle",
                           expertLevel=params.LEVEL_ADVANCED,
                           help='Number of MD steps per production cycle')
-        #todo use this
         simGroup.addParam('useOpenmmdl', params.BooleanParam, default=True, label="Analyze trajectory with OpenMMDL: ",
                         help='Whether to analyze the trajectory with OpenMMDL')
 
@@ -187,8 +186,8 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
     def _insertAllSteps(self):
       self._insertFunctionStep(self.createParamsFileStep)
       self._insertFunctionStep(self.productionRunStep)
-      if self.useOpenmmdl.get() and self.inputSystem.get().getLigTopologyFile():
-          self._insertFunctionStep(self.analyzeStep)
+      #if self.useOpenmmdl.get() and self.inputSystem.get().getLigTopologyFile():
+      #    self._insertFunctionStep(self.analyzeStep)
       self._insertFunctionStep(self.createOutputStep)
 
     def createParamsFileStep(self):
@@ -272,7 +271,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
             sysName = self.getSystemName()
             trajFile = self._getPath(f"{sysName}.dcd")
             f.write(f"trajFile = {os.path.abspath(trajFile)}\n")
-            logFile = self._getPath("log.txt")
+            logFile = self._getPath("md_log.txt")
             f.write(f"logFile = {os.path.abspath(logFile)}\n")
             finalPdb = self._getPath(f"{sysName}.pdb")
             f.write(f"finalPdb = {os.path.abspath(finalPdb)}\n")
@@ -287,7 +286,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         Plugin.runScript(self, 'openmmConstantpH.py', args=f'--params {paramsFile}', env=OPENMM_DIC, cwd=self._getPath())
 
 
-    def createOutputStep(self): #todo this when i see how and if it works
+    def createOutputStep(self):
       systemName = self.getSystemName()
       systemFile = os.path.relpath(self.getSystemFile())
       outTopFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
@@ -301,7 +300,6 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
       outSystem.setTrajectoryFile(outDcdFile)
 
-      #todo right now this wouldnt work
       ligFile = self.inputSystem.get().getLigTopologyFile()
       if ligFile:
         outSystem.setLigTopologyFile(ligFile)
