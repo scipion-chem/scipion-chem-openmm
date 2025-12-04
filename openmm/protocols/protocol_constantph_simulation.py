@@ -36,6 +36,7 @@ from pyworkflow.utils import Message
 from pwem.protocols import EMProtocol
 
 from pwchem import Plugin as pwchemPlugin
+from protocol_system_prep import ProtOpenMMSystemPrep
 
 from .. import Plugin
 from ..constants import OPENMM_DIC
