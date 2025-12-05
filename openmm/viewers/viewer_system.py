@@ -251,7 +251,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
     def _defineParams(self, form):
       super()._defineParams(form)
 
-      if self.getMDSystem().hasTrajectory():
+      if self.getMDSystem().hasTrajectory() and self.getMDSystem().getOpenmmdlDir() is not None:
           self._defineReportParams(form)
 
     def _getVisualizeDict(self):
