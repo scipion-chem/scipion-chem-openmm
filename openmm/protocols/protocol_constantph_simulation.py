@@ -36,9 +36,9 @@ from pyworkflow.utils import Message
 from pwem.protocols import EMProtocol
 
 from pwchem import Plugin as pwchemPlugin
-from protocol_system_prep import ProtOpenMMSystemPrep
 
 from .. import Plugin
+from pwchem.utils import getBaseName, convertToSdf
 from ..constants import OPENMM_DIC
 from ..objects import OpenMMSystem
 
@@ -63,6 +63,71 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
     }
 
     # -------------------------- DEFINE param functions ----------------------
+    def _defineFFParams(self, form, ligandCondition='True'):
+        form.addParam('ffType', params.EnumParam, default=0, choices=['Amber14', 'CHARMM36', 'Old'],
+                      label="Main atomic force field: ", help='Main force field to use')
+        form.addParam('ffAmberType', params.EnumParam, default=0, expertLevel=params.LEVEL_ADVANCED,
+                      condition='ffType==0', label="Amber atomic force field: ",
+                      choices=['All', 'protein.ff14SB', 'protein.ff15ipq', 'DNA.OL15', 'DNA.bsc1', 'RNA.OL3', 'lipid17'],
+                      help='Amber main force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#amber14')
+        form.addParam('ffAmberWaterType', params.EnumParam, default=3, condition='ffType==0',
+                      label="Amber water force field: ",
+                      choices=['SPCE', 'OPC', 'OPC3', 'tip3p', 'tip3pfb', 'tip4pew', 'tip4pfb'],
+                      help='Water amber force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#amber14')
+
+        form.addParam('ffCHARMMWaterType', params.EnumParam, default=0, condition='ffType==1',
+                      label="CHARMM water force field: ", expertLevel=params.LEVEL_ADVANCED,
+                      choices=['Water', 'SPCE', 'tip3p-pme-b', 'tip3p-pme-f', 'tip4pew', 'tip4p2005', 'tip5p', 'tip5pew'],
+                      help='Water CHARMM force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#charmm36')
+
+        form.addParam('ffOldType', params.EnumParam, default=0,
+                      choices=['amber96', 'amber99sb', 'amber99sbildn', 'amber99sbnmr', 'amber03', 'amber10', 'charmm_polar_2013'],
+                      condition='ffType==2', label="Older force field: ",
+                      help='Select an older main force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#older-force-fields')
+
+        form.addParam('ffWaterType', params.EnumParam, default=0,
+                      choices=['tip3p', 'tip3pfb', 'tip4pew', 'tip4pfb', 'tip5p', 'spce', 'swm4ndp', 'opc', 'opc3'],
+                      condition='ffType==2', label="Water force field: ",
+                      help='Select an water force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#water-models')
+
+        form.addParam('constraints', params.EnumParam, default=1, label="Forcefield constraints: ",
+                      choices=['None', 'HBonds', 'AllBonds', 'HAngles'],
+                      help='You can optionally tell OpenMM to constrain certain bond lengths and angles.'
+                           'http://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
+        return form
+
+    def _defineFFImpParams(self, form, ligandCondition='True'):
+        form.addParam('ffTypeImp', params.EnumParam, default=0, choices=['Amber14', 'CHARMM36', 'Old'],
+                      label="Implicit atomic force field: ", help='Implicit force field to use. It will be used when deciding whether to change the protonation states of residues.')
+        form.addParam('ffAmberTypeImp', params.EnumParam, default=0, expertLevel=params.LEVEL_ADVANCED,
+                      condition='ffTypeImp==0', label="Amber atomic force field: ",
+                      choices=['All', 'protein.ff14SB', 'protein.ff15ipq', 'DNA.OL15', 'DNA.bsc1', 'RNA.OL3', 'lipid17'],
+                      help='Amber main force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#amber14')
+        form.addParam('ffAmberWaterTypeImp', params.EnumParam, default=3, condition='ffTypeImp==0',
+                      label="Amber water force field: ",
+                      choices=['SPCE', 'OPC', 'OPC3', 'tip3p', 'tip3pfb', 'tip4pew', 'tip4pfb'],
+                      help='Water amber force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#amber14')
+
+        form.addParam('ffCHARMMWaterTypeImp', params.EnumParam, default=0, condition='ffTypeImp==1',
+                      label="CHARMM water force field: ", expertLevel=params.LEVEL_ADVANCED,
+                      choices=['Water', 'SPCE', 'tip3p-pme-b', 'tip3p-pme-f', 'tip4pew', 'tip4p2005', 'tip5p', 'tip5pew'],
+                      help='Water CHARMM force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#charmm36')
+        form.addParam('ffOldTypeImp', params.EnumParam, default=0,
+                      choices=['amber96', 'amber99sb', 'amber99sbildn', 'amber99sbnmr', 'amber03', 'amber10', 'charmm_polar_2013'],
+                      condition='ffTypeImp==2', label="Older force field: ",
+                      help='Select an older main force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#older-force-fields')
+
+        form.addParam('ffWaterTypeImp', params.EnumParam, default=0,
+                      choices=['tip3p', 'tip3pfb', 'tip4pew', 'tip4pfb', 'tip5p', 'spce', 'swm4ndp', 'opc', 'opc3'],
+                      condition='ffTypeImp==2', label="Implicit water force field: ",
+                      help='Select an water force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#water-models')
+
+        form.addParam('constraintsImp', params.EnumParam, default=1, label="Forcefield constraints: ",
+                      choices=['None', 'HBonds', 'AllBonds', 'HAngles'],
+                      help='You can optionally tell OpenMM to constrain certain bond lengths and angles.'
+                           'http://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
+        return form
+
     def _defineMinimization(self, form):
         form.addParam('addMinimization', params.BooleanParam, default=True, label="Add minimization: ",
                       help='Add energy minimization')
@@ -117,8 +182,9 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
 
         form.addSection(label=Message.LABEL_INPUT)
 
-        form.addParam('inputSystem', params.PointerParam, label="Input structure: ", allowsNull=False,
-                      important=True, pointerClass='OpenMMSystem', help='OpenMMSystem to execute the simulation over')
+        form.addParam('inputStructure', params.PointerParam, label="Input structure: ", allowsNull=False,
+                      important=True, pointerClass='AtomStruct',
+                      help='Atomic structure to be prepared for MD by solvation, ions addition etc.')
 
         phGroup = form.addGroup('pH ')
         phGroup.addParam('singlePH', params.BooleanParam, default=True, label="Use one single pH value: ",
@@ -128,27 +194,14 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         phGroup.addParam('manyPH', params.StringParam, default='6.5, 7.0, 7.5, 8.0, 8.5', label="pH values: ", condition='not singlePH',
                       help='The pH values to use, separated with commas.')
 
-        ffGroup = form.addGroup('Force Field Parameters')
-        ffGroup.addParam('implicitSolvent', params.EnumParam, default=0,
-                         choices=['obc1', 'obc2', 'gbn', 'gbn2', 'hct'],
-                         label='Implicit solvent model: ',
-                         help='Implicit solvent to use for constant pH simulation.')
-        ffGroup.addParam('explicitCutoff', params.FloatParam, default=0.9, label="Explicit cutoff (nm)",
-                         expertLevel=params.LEVEL_ADVANCED,
-                         help='Cutoff distance for nonbonded interactions in explicit solvent')
-        ffGroup.addParam('implicitCutoff', params.FloatParam, default=2.0, label="Implicit cutoff (nm)",
-                         expertLevel=params.LEVEL_ADVANCED,
-                         help='Cutoff distance for nonbonded interactions in implicit solvent')
-        ffGroup.addParam('hydrogenMass', params.FloatParam, default=1.5, label="Hydrogen mass (amu)",
-                         expertLevel=params.LEVEL_ADVANCED,
-                         help='Mass of hydrogens to use in simulations (can accelerate integration)')
-        ffGroup.addParam('constraints', params.EnumParam, default=1,
-                         label="Forcefield constraints",
-                         choices=['None', 'HBonds', 'AllBonds', 'HAngles'],
-                         help='Optional bond/angle constraints for OpenMM. '
-                              'http://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
+        ffGroup = form.addGroup('Main Force Field Parameters')
+        self._defineFFParams(ffGroup, False)
+        ffGroup = form.addGroup('Implicit Force Field Parameters')
+        self._defineFFImpParams(ffGroup, False)
 
         simGroup = form.addGroup('Simulation Steps')
+        simGroup.addParam('saveInterval', params.IntParam, default=100, label="Trajectory save interval: ",
+                          help="Number of steps between saving frames in the trajectory")
         simGroup.addParam('relaxSteps', params.IntParam, default=500, label="Relaxation steps",
                           expertLevel=params.LEVEL_ADVANCED,
                           help='Number of steps for initial relaxation of the system')
@@ -170,6 +223,30 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
         titrGroup.addParam('residuesToTitrate', params.StringParam, default='ASP, GLU, CYS, HIS, LYS',
                            label="Residues to titrate",
                            help='Residues that will be considered for constant pH titration')
+
+        fform = form.addGroup('Non bonded interactions')
+        fform.addParam('hydrogenMass', params.FloatParam, default=1.5, label="Hydrogen mass (amu)",
+                       expertLevel=params.LEVEL_ADVANCED,
+                       help='Mass of hydrogens to use in simulations (can accelerate integration)')
+        fform.addParam('nonbondedMethodExp', params.EnumParam, default=2,
+                       choices=['NoCutoff', 'CutoffNonPeriodic', 'CutoffPeriodic', 'Ewald', 'PME', 'LJPME'],
+                       label="Explicit non bonded method: ",
+                       help='Non bonded method to simulate the non bonded atom interactions')
+        fform.addParam('explicitCutoff', params.FloatParam, default=0.9, label="Explicit cutoff (nm)",
+                       expertLevel=params.LEVEL_ADVANCED,
+                       help='Cutoff distance for nonbonded interactions in explicit solvent')
+        fform.addParam('nonbondedMethodImp', params.EnumParam, default=1,
+                       choices=['NoCutoff', 'CutoffNonPeriodic', 'CutoffPeriodic', 'Ewald', 'PME', 'LJPME'],
+                       label="Implicit non bonded method: ",
+                       help='Non bonded method to simulate the non bonded atom interactions')
+        fform.addParam('implicitCutoff', params.FloatParam, default=2.0, label="Implicit cutoff (nm)",
+                       expertLevel=params.LEVEL_ADVANCED,
+                       help='Cutoff distance for nonbonded interactions in implicit solvent')
+        formH = form.addGroup('Hydrogens')
+        formH.addParam('addH', params.BooleanParam, default=False,
+                       label='Add hydrogens to the system: ', help='Add hydrogens to the system')
+        formH.addParam('hPH', params.FloatParam, default=7.5,
+                       label='PH for hydrogen addition: ', help='The pH based on which to select variants')
 
         mGroup = form.addGroup('Minimization')
         self._defineMinimization(mGroup)
@@ -206,18 +283,20 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
             f.write(f"inputPdb = {self.getStructureFile()}\n")
 
             # Force fields
-            f.write(f"explicitFF = {self.inputSystem.get().getForceField()}\n")
-            f.write(f"explicitSolvent = {self.inputSystem.get().getWaterForceField()}\n")
-            f.write(f"implicitFF = {self.inputSystem.get().getForceField()}\n")
-            solventKey = self.getEnumText("implicitSolvent")
-            implicitFF_file = self.IMPLICIT_SOLVENT_MAP[solventKey]
-            f.write(f"implicitSolvent = {implicitFF_file}\n")
-            f.write(f"ligandFile = {os.path.abspath(self.inputSystem.get().getLigTopologyFile())}\n")
-            f.write(f"ligandFF = {os.path.abspath(self._getExtraPath('ligandFF.xml'))}\n")
-
-            f.write(f"constraints = {self.constraints.get()}\n")
+            mff, wff = self.getFFFiles()
+            f.write(f"explicitFF = {mff}\n")
+            f.write(f"explicitSolvent = {wff}\n")
+            f.write(f"constraintsExp = {self.getEnumText('constraints')}\n")
+            mffImp, wffImp = self.getFFFilesImp()
+            f.write(f"implicitFF = {mffImp}\n")
+            f.write(f"implicitSolvent = {wffImp}\n")
+            f.write(f"constraintsImp = {self.getEnumText('constraintsImp')}\n")
+            # f.write(f"ligandFile = {os.path.abspath(self.inputSystem.get().getLigTopologyFile())}\n")
+            # f.write(f"ligandFF = {os.path.abspath(self._getExtraPath('ligandFF.xml'))}\n")
 
             # Cutoffs and hydrogen mass
+            f.write(f"nonBondedMethodExp = {self.getEnumText('nonbondedMethodExp')}\n")
+            f.write(f"nonBondedMethodImp = {self.getEnumText('nonbondedMethodImp')}\n")
             f.write(f"explicitCutoff = {self.explicitCutoff.get()}\n")
             f.write(f"implicitCutoff = {self.implicitCutoff.get()}\n")
             f.write(f"hydrogenMass = {self.hydrogenMass.get()}\n")
@@ -228,6 +307,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
             f.write(f"stepEquil = {self.stepEquil.get()}\n")
             f.write(f"prodSteps = {self.prodSteps.get()}\n")
             f.write(f"stepProd = {self.stepProd.get()}\n")
+            f.write(f"reportEvery = {self.saveInterval.get()}\n")
 
             # Residues to titrate
             f.write(f"residuesToTitrate = {self.residuesToTitrate.get()}\n")
@@ -255,6 +335,10 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
             f.write(f"minimTol = {self.minimTol.get()}\n")
             f.write(f"maxIter = {self.maxIter.get()}\n")
 
+            # Add hydrogens
+            f.write(f"addHydrogens = {self.addH.get()}\n")
+            f.write(f"hPH = {self.hPH.get()}\n")
+
             # Barostat
             f.write(f"addBarostat = {str(self.addBarostat.get())}\n")
             if self.addBarostat.get():
@@ -278,6 +362,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
             f.write(f"finalPdb = {os.path.abspath(finalPdb)}\n")
             finalCif = self._getPath(f"{sysName}.cif")
             f.write(f"finalCif = {os.path.abspath(finalCif)}\n")
+            f.write(f'systemXml = {self.getSystemFile()}\n')
 
 
         print(f"Parameters file created at: {paramsFile}")
@@ -290,6 +375,7 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
     def createOutputStep(self):
       systemName = self.getSystemName()
       systemFile = os.path.relpath(self.getSystemFile())
+      systemFile = self._getPath(f'{systemName}.xml')
       outTopFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
       outCifFile = self._getPath(f'{systemName}.cif')
 
@@ -301,9 +387,9 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
       outSystem.setTrajectoryFile(outDcdFile)
 
-      ligFile = self.inputSystem.get().getLigTopologyFile()
-      if ligFile:
-        outSystem.setLigTopologyFile(ligFile)
+      #ligFile = self.inputSystem.get().getLigTopologyFile()
+      #if ligFile:
+      #  outSystem.setLigTopologyFile(ligFile)
 
       anaDir = self._getExtraPath('OpenMMDL')
       if os.path.exists(anaDir):
@@ -340,9 +426,36 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
 
     # --------------------------- UTILS functions -----------------------------------
     def getFFFiles(self):
-      system = self.inputSystem.get()
-      return system.getForceField(), system.getWaterForceField()
+        if self.ffType.get() == 0:
+            mFF = 'amber14-all.xml' if self.ffAmberType.get() == 0 \
+                else 'amber14/{}.xml'.format(self.getEnumText('ffAmberType'))
+            wFF = 'amber14/{}.xml'.format(self.getEnumText('ffAmberWaterType').lower())
 
+        elif self.ffType.get() == 1:
+            mFF = 'charmm36.xml'
+            wFF = 'charmm36/{}.xml'.format(self.getEnumText('ffCHARMMWaterType').lower())
+
+        elif self.ffType.get() == 2:
+            mFF = '{}.xml'.format(self.getEnumText('ffOldType'))
+            wFF = '{}.xml'.format(self.getEnumText('ffWaterType'))
+
+        return mFF, wFF
+
+    def getFFFilesImp(self):
+        if self.ffTypeImp.get() == 0:
+            mFF = 'amber14-all.xml' if self.ffAmberTypeImp.get() == 0 \
+                else 'amber14/{}.xml'.format(self.getEnumText('ffAmberType'))
+            wFF = 'amber14/{}.xml'.format(self.getEnumText('ffAmberWaterType').lower())
+
+        elif self.ffTypeImp.get() == 1:
+            mFF = 'charmm36.xml'
+            wFF = 'charmm36/{}.xml'.format(self.getEnumText('ffCHARMMWaterType').lower())
+
+        elif self.ffTypeImp.get() == 2:
+            mFF = '{}.xml'.format(self.getEnumText('ffOldType'))
+            wFF = '{}.xml'.format(self.getEnumText('ffWaterType'))
+
+        return mFF, wFF
     def getNBParams(self):
       system = self.inputSystem.get()
       return system._nbMethod.get(), system._nbCutoff.get()
@@ -351,17 +464,23 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
       return os.path.abspath(self._getExtraPath('simulationParams.txt'))
 
     def getStructureFile(self):
-      name = os.path.splitext(os.path.basename(self.inputSystem.get().getCifFile()))[0]
-      pdbFile = self._getExtraPath(f'{name}.pdb')
-      cifToPdb(os.path.abspath(self.inputSystem.get().getCifFile()), (pdbFile))
-      return os.path.abspath(pdbFile)
+        proteinFile = self.inputStructure.get().getFileName()
+        name = os.path.splitext(os.path.basename(proteinFile))[0]
+        pdbFile = self._getExtraPath(f'{name}_system.pdb')
+        cifToPdb(os.path.abspath(proteinFile), (pdbFile))
+        return os.path.abspath(pdbFile)
 
-    def getSystemFile(self):
-      return os.path.abspath(self.inputSystem.get().getSerieFile())
+    def getSystemFile(self): #we will need to change this
+        proteinFile = self.inputStructure.get().getFileName()
+        name = os.path.splitext(os.path.basename(proteinFile))[0]
+        systemName = self._getPath(f'{name}_system.xml')
+        return os.path.abspath(systemName)
 
     def getSystemName(self):
-      return self.inputSystem.get().getSystemName()
+        return getBaseName(self.getStructureFile())
 
     def getNFrames(self):
-      nFrames = (self.prodSteps.get()*self.stepProd.get()) // 1000
-      return nFrames
+        totalSteps = self.prodSteps.get() * self.stepProd.get()
+        saveInterval = self.saveInterval.get()
+        nFrames = totalSteps // saveInterval
+        return nFrames

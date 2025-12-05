@@ -15,6 +15,7 @@ import os, sys
 from openff.toolkit.topology import Molecule
 from openff.toolkit.typing.engines.smirnoff import ForceField as offForceField
 from openff.toolkit.utils import get_data_file_path
+from openmm import XmlSerializer
 
 # ---------------------------
 # Helpers
@@ -152,17 +153,19 @@ def runConstantPhSimulation(params):
     implicitFF = ForceField(params['implicitFF'], params['implicitSolvent'])
     print("  implicit ForceField created.")
 
-    explicitParams = dict( #todo this was PME why tf does it not work!?
+    explicitParams = dict(
+        #nonbondedMethod=params['nonBondedMethodExp'],
         nonbondedMethod=CutoffNonPeriodic,
         nonbondedCutoff=params['explicitCutoff'] * nanometers,
-        constraints=params['constraints'],
+        constraints=params['constraintsExp'],
         hydrogenMass=params['hydrogenMass'] * amu
     )
 
     implicitParams = dict(
+        #nonbondedMethod=params['nonBondedMethodImp'],
         nonbondedMethod=CutoffNonPeriodic,
         nonbondedCutoff=params['implicitCutoff'] * nanometers,
-        constraints=params['constraints']
+        constraints=params['constraintsImp']
     )
 
     print(f"[run] NB params explicit_cutoff={explicitParams['nonbondedCutoff']}, implicit_cutoff={implicitParams['nonbondedCutoff']}")
@@ -183,6 +186,11 @@ def runConstantPhSimulation(params):
     print("\n--- Computing reference energies ---")
     refenergies = {}
     variantsDict = {}
+
+    modeller = Modeller(pdb.topology, pdb.positions)
+
+    if (params['addHydrogens']):
+        modeller.addHydrogens(explicitFF, pH=float(params['hPH']))
 
     # ASP
     if 'ASP' in params['residuesToTitrate']:
@@ -297,7 +305,6 @@ def runConstantPhSimulation(params):
     # -----------------------------------
     # Build ConstantPH Simulation
     # -----------------------------------
-    modeller = Modeller(pdb.topology, pdb.positions)
 
     # Remove ligands
     ligands = [res for res in modeller.topology.residues() if res.name == 'LIG']
@@ -308,6 +315,35 @@ def runConstantPhSimulation(params):
     # Use the filtered topology and positions in ConstantPH
     filteredTopology = modeller.topology
     filteredPositions = modeller.positions
+
+    print("\n--- Building System and writing XML ---")
+
+    # Load ALL force fields used to create the system
+    ff_list = [params['explicitFF'], params['explicitSolvent']]
+
+    # Optional ligand XML
+    if params.get("ligandFF"):
+        ff_list.append(params["ligandFF"])
+
+    systemFF = ForceField(*ff_list)
+
+    # Build System
+    system = systemFF.createSystem(
+        filteredTopology,
+        nonbondedMethod=explicitParams['nonbondedMethod'],
+        nonbondedCutoff=explicitParams['nonbondedCutoff'],
+        constraints=explicitParams['constraints'],
+        hydrogenMass=explicitParams['hydrogenMass'],
+        rigidWater=False
+    )
+
+    # Write XML
+    systemXml = params['systemXml']
+    with open(systemXml, "w") as f:
+        f.write(XmlSerializer.serialize(system))
+
+    print(f"[run] OpenMM system XML written to: {systemXml}")
+
     #todo it does not work with ligands
     print("\n--- Creating simulation ---")
     cph = ConstantPH(
@@ -323,7 +359,7 @@ def runConstantPhSimulation(params):
     trajFile = params['trajFile']
     logFile = params['logFile']
     finalPdb = params['finalPdb']
-    reportEvery = 1000
+    reportEvery = params['reportEvery']
 
     cph.simulation.reporters.append(DCDReporter(trajFile, reportEvery))
     totalSteps = params['equilSteps'] * params['stepEquil'] + params['prodSteps'] * params['stepProd']
@@ -337,11 +373,11 @@ def runConstantPhSimulation(params):
             kineticEnergy=True,
             totalEnergy=True,
             volume=True,
-            progress=True,
-            remainingTime=True,
+            progress=False,
+            remainingTime=False,
             speed=True,
             totalSteps=totalSteps,
-            separator='\t'
+            separator=','
         )
     )
 
