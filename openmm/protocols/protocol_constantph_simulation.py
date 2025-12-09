@@ -46,6 +46,9 @@ from pwem.convert import cifToPdb
 from openmm.protocols.protocol_system_simulation import ProtOpenMMSystemSimulation
 from openmm.protocols.protocol_system_prep import ProtOpenMMSystemPrep
 
+
+STRUCTURE, LIGAND = 0, 1
+LIG_INPUT = f'inputFrom == {LIGAND}'
 class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenMMSystemPrep):
     """
     This protocol will start a Molecular Dynamics simulation with constant pH specified by user.
@@ -108,9 +111,21 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
 
         form.addSection(label=Message.LABEL_INPUT)
 
-        form.addParam('inputStructure', params.PointerParam, label="Input structure: ", allowsNull=False,
-                      important=True, pointerClass='AtomStruct',
-                      help='Atomic structure to be prepared for MD by solvation, ions addition etc.')
+        #form.addParam('inputStructure', params.PointerParam, label="Input structure: ", allowsNull=False,
+        #              important=True, pointerClass='AtomStruct',
+        #              help='Atomic structure to be prepared for MD by solvation, ions addition etc.')
+        form.addParam('inputFrom', params.EnumParam, default=STRUCTURE,
+                        label='Input from: ', choices=['AtomStruct', 'SetOfSmallMolecules'],
+                        help='Type of input you want to use')
+        form.addParam('inputStructure', params.PointerParam, pointerClass='SchrodingerAtomStruct, AtomStruct',
+                        label='Input structure to be prepared for MD:', condition='inputFrom==0', allowsNull=True,
+                        help='Atomic structure to be prepared for MD by solvation, ions addition etc')
+        form.addParam('inputSetOfMols', params.PointerParam, pointerClass='SetOfSmallMolecules',
+                        label='Input set of molecules:', condition=LIG_INPUT, allowsNull=True,
+                        help='Input set of docked molecules. One of them will be prepared together with its target')
+        form.addParam('inputLigand', params.StringParam, condition=LIG_INPUT,
+                        label='Ligand to prepare: ',
+                        help='Specific ligand to prepare in the system')
 
         phGroup = form.addGroup('pH ')
         phGroup.addParam('singlePH', params.BooleanParam, default=True, label="Use one single pH value: ",
@@ -311,10 +326,6 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
                                repFile=self._getPath('md_log.txt'),
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
       outSystem.setTrajectoryFile(outDcdFile)
-
-      #ligFile = self.inputSystem.get().getLigTopologyFile()
-      #if ligFile:
-      #  outSystem.setLigTopologyFile(ligFile)
 
       anaDir = self._getExtraPath('OpenMMDL')
       if os.path.exists(anaDir):
