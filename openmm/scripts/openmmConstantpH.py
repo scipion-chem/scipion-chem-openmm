@@ -166,17 +166,26 @@ def runConstantPhSimulation(params):
     implicitFF = ForceField(params['implicitFF'], params['implicitSolvent'])
     print("  implicit ForceField created.")
 
+    nonbondedMethods = {
+        'NoCutoff': NoCutoff,
+        'CutoffNonPeriodic': CutoffNonPeriodic,
+        'CutoffPeriodic': CutoffPeriodic,
+        'Ewald': Ewald,
+        'PME': PME,
+        'LJPME': LJPME
+    }
+    nonBondedMethodExp = nonbondedMethods[params['nonBondedMethodExp']]
+    nonBondedMethodImp = nonbondedMethods[params['nonBondedMethodImp']]
+
     explicitParams = dict(
-        #nonbondedMethod=params['nonBondedMethodExp'],
-        nonbondedMethod=CutoffNonPeriodic,
+        nonbondedMethod=nonBondedMethodExp,
         nonbondedCutoff=params['explicitCutoff'] * nanometers,
         constraints=params['constraintsExp'],
         hydrogenMass=params['hydrogenMass'] * amu
     )
 
     implicitParams = dict(
-        #nonbondedMethod=params['nonBondedMethodImp'],
-        nonbondedMethod=CutoffNonPeriodic,
+        nonbondedMethod=nonBondedMethodImp,
         nonbondedCutoff=params['implicitCutoff'] * nanometers,
         constraints=params['constraintsImp']
     )
@@ -456,56 +465,6 @@ def runConstantPhSimulation(params):
 
     print("[run] Final snapshot written.")
 
-    #print("[post] Re-attaching ligand to final system...")
-
-    # Extract ligand from original PDB
-    #ligand_atoms = [a for a in pdb.topology.atoms() if a.residue.name == 'LIG']
-    #if len(ligand_atoms) == 0:
-    #    raise RuntimeError("Ligand not found in input system. Residue name is not 'LIG'.")
-
-    #ligand_top = Topology()
-    #ligand_chain = ligand_top.addChain()
-    #ligand_res = ligand_top.addResidue("LIG", ligand_chain)
-
-    #ligand_pos = []
-    #for atom in ligand_atoms:
-    #    ligand_top.addAtom(atom.name, atom.element, ligand_res)
-    #    ligand_pos.append(pdb.positions[atom.index])
-
-    # Merge ConstantPH protein + ligand
-    #merged_top = Topology()
-    #merged_pos = []
-
-    # Protein
-    #for chain in cph.simulation.topology.chains():
-    #    new_chain = merged_top.addChain()
-    #    for res in chain.residues():
-    #        new_res = merged_top.addResidue(res.name, new_chain)
-    #        for atom in res.atoms():
-    #            merged_top.addAtom(atom.name, atom.element, new_res)
-    #            merged_pos.append(
-    #                cph.simulation.context.getState(getPositions=True).getPositions()[atom.index]
-    #            )
-
-    # Ligand
-    #lig_chain = merged_top.addChain("X")  # new chain
-    #lig_res = merged_top.addResidue("LIG", lig_chain)
-
-    #for atom in ligand_atoms:
-    #    merged_top.addAtom(atom.name, atom.element, lig_res)
-    #    merged_pos.append(pdb.positions[atom.index])
-
-    # Final merged system
-    #print("[post] Writing final merged PDB (protein + ligand)")
-    #with open(finalPdb, "w") as f:
-    #    PDBFile.writeFile(merged_top, merged_pos, f)
-
-    #with open(params['finalCif'], "w") as f:
-    #    PDBxFile.writeFile(merged_top, merged_pos, f)
-
-    #print("[run] Final snapshot written.")
-
-
 # ---------------------------
 # Entry point
 # ---------------------------
@@ -535,8 +494,5 @@ if __name__ == "__main__":
         print(f"[startup] Could not import constantph/reference_energy: {e}")
         print("[startup] Make sure constantph.py and reference_energy.py are on sys.path or pass 'constantPHScript' in params.")
         raise
-
-    #todo NO FUNCIONA CON LIGANDS
-    #generateLigandFF(params["ligandFile"], params["ligandFF"])
 
     runConstantPhSimulation(params)
