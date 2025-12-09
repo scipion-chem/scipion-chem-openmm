@@ -160,7 +160,6 @@ def runConstantPhSimulation(params):
 
     print("[run] Creating force fields...")
     explicitFF = ForceField(params['explicitFF'], params['explicitSolvent'])
-    #todo this includes ligand ff
     print("  explicit ForceField created.")
     implicitFF = ForceField(params['implicitFF'], params['implicitSolvent'])
     print("  implicit ForceField created.")
