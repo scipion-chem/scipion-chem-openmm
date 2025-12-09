@@ -25,9 +25,11 @@
 # **************************************************************************
 
 from pwem.protocols import ProtImportPdb
+from pyworkflow.tests import BaseTest, DataSet, setupTestProject
+from pwchem.protocols import ProtChemPrepareReceptor
 from pwchem.tests import TestPrepareReceptor, TestExtractLigand
 
-from ..protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation, ProtOpenMMInteractionEnergy
+from ..protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation, ProtOpenMMInteractionEnergy, ProtOpenMMSystemSimulationConstantPH
 
 STRUCTURE, LIGAND = 0, 1
 
@@ -143,3 +145,41 @@ class TestOpenMMInteractions(TestOpenMMSimulation):
         self._waitOutput(protInt, 'outputSmallMolecules', sleepTime=10)
         self.assertIsNotNone(getattr(protInt, 'outputSmallMolecules', None))
 
+class TestOpenMMcph(BaseTest):
+    @classmethod
+    def setUpClass(cls):
+        cls.ds = DataSet.getDataSet('model_building_tutorial')
+
+        setupTestProject(cls)
+        cls._runImportPDB()
+        cls._waitOutput(cls.protImportPDB, 'outputPdb', sleepTime=5)
+
+    @classmethod
+    def _runImportPDB(cls):
+        protImportPDB = cls.newProtocol(
+            ProtImportPdb,
+            inputPdbData=0, pdbId='4erf')
+        cls.launchProtocol(protImportPDB)
+        cls.protImportPDB = protImportPDB
+
+    @classmethod
+    def _runPrepareTarget(cls):
+        protInt = cls.newProtocol(
+            ProtChemPrepareReceptor, inputAtomStruct=cls.protImportPDB.outputPdb, usePDBFixer=True)
+        cls.launchProtocol(protInt)
+        cls.protInt = protInt
+
+    @classmethod
+    def _runCphSim(cls):
+        system = cls.newProtocol(
+            ProtOpenMMSystemSimulationConstantPH, inputStructure=cls.protInt.outputStructure, prodSteps=500)
+        cls.launchProtocol(system)
+        return system
+
+    def test(self):
+        self._runPrepareTarget()
+        self._waitOutput(self.protInt, 'outputStructure')
+
+        system = self._runCphSim()
+        self._waitOutput(system, 'outputSystem')
+        self.assertIsNotNone(getattr(system, 'outputSystem', None))
