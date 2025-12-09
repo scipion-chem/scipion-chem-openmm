@@ -43,9 +43,10 @@ from ..constants import OPENMM_DIC
 from ..objects import OpenMMSystem
 
 from pwem.convert import cifToPdb
+from openmm.protocols.protocol_system_simulation import ProtOpenMMSystemSimulation
+from openmm.protocols.protocol_system_prep import ProtOpenMMSystemPrep
 
-
-class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
+class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenMMSystemPrep):
     """
     This protocol will start a Molecular Dynamics simulation with constant pH specified by user.
     """
@@ -63,39 +64,6 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
     }
 
     # -------------------------- DEFINE param functions ----------------------
-    def _defineFFParams(self, form, ligandCondition='True'):
-        form.addParam('ffType', params.EnumParam, default=0, choices=['Amber14', 'CHARMM36', 'Old'],
-                      label="Main atomic force field: ", help='Main force field to use')
-        form.addParam('ffAmberType', params.EnumParam, default=0, expertLevel=params.LEVEL_ADVANCED,
-                      condition='ffType==0', label="Amber atomic force field: ",
-                      choices=['All', 'protein.ff14SB', 'protein.ff15ipq', 'DNA.OL15', 'DNA.bsc1', 'RNA.OL3', 'lipid17'],
-                      help='Amber main force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#amber14')
-        form.addParam('ffAmberWaterType', params.EnumParam, default=3, condition='ffType==0',
-                      label="Amber water force field: ",
-                      choices=['SPCE', 'OPC', 'OPC3', 'tip3p', 'tip3pfb', 'tip4pew', 'tip4pfb'],
-                      help='Water amber force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#amber14')
-
-        form.addParam('ffCHARMMWaterType', params.EnumParam, default=0, condition='ffType==1',
-                      label="CHARMM water force field: ", expertLevel=params.LEVEL_ADVANCED,
-                      choices=['Water', 'SPCE', 'tip3p-pme-b', 'tip3p-pme-f', 'tip4pew', 'tip4p2005', 'tip5p', 'tip5pew'],
-                      help='Water CHARMM force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#charmm36')
-
-        form.addParam('ffOldType', params.EnumParam, default=0,
-                      choices=['amber96', 'amber99sb', 'amber99sbildn', 'amber99sbnmr', 'amber03', 'amber10', 'charmm_polar_2013'],
-                      condition='ffType==2', label="Older force field: ",
-                      help='Select an older main force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#older-force-fields')
-
-        form.addParam('ffWaterType', params.EnumParam, default=0,
-                      choices=['tip3p', 'tip3pfb', 'tip4pew', 'tip4pfb', 'tip5p', 'spce', 'swm4ndp', 'opc', 'opc3'],
-                      condition='ffType==2', label="Water force field: ",
-                      help='Select an water force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#water-models')
-
-        form.addParam('constraints', params.EnumParam, default=1, label="Forcefield constraints: ",
-                      choices=['None', 'HBonds', 'AllBonds', 'HAngles'],
-                      help='You can optionally tell OpenMM to constrain certain bond lengths and angles.'
-                           'http://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
-        return form
-
     def _defineFFImpParams(self, form, ligandCondition='True'):
         form.addParam('ffTypeImp', params.EnumParam, default=0, choices=['Amber14', 'CHARMM36', 'Old'],
                       label="Implicit atomic force field: ", help='Implicit force field to use. It will be used when deciding whether to change the protonation states of residues.')
@@ -126,48 +94,6 @@ class ProtOpenMMSystemSimulationConstantPH(EMProtocol):
                       choices=['None', 'HBonds', 'AllBonds', 'HAngles'],
                       help='You can optionally tell OpenMM to constrain certain bond lengths and angles.'
                            'http://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
-        return form
-
-    def _defineMinimization(self, form):
-        form.addParam('addMinimization', params.BooleanParam, default=True, label="Add minimization: ",
-                      help='Add energy minimization')
-        form.addParam('minimTol', params.FloatParam, default=10, label="Minimization tolerance (kJ/mol): ",
-                      condition='addMinimization',
-                      help='This specifies how precisely the energy minimum must be located.  Minimization is halted '
-                           'once the root-mean-square value of all force components reaches this tolerance.')
-        form.addParam('maxIter', params.IntParam, default=10000, label="Maximum iterations: ",
-                      condition='addMinimization',
-                      help='The maximum number of iterations to perform.  If this is 0, minimization is continued until'
-                           ' the results converge without regard to how many iterations it takes.')
-        return form
-
-    def _defineIntegrator(self, form):
-        form.addParam('integrator', params.EnumParam, default=1, label="Simulation integrator: ",
-                      choices=['Verlet', 'Langevin', 'LangevinMiddle', 'NoseHoover', 'Brownian', 'VariableVerlet',
-                               'VariableLangevin'],
-                      help='http://docs.openmm.org/latest/userguide/theory/04_integrators.html')
-
-        form.addParam('stepSize', params.FloatParam, default=0.002, label="Step size for integration (ps): ",
-                      condition='not integrator in [5, 6]',
-                      help='The step size with which to integrate the system (in picoseconds)')
-        form.addParam('fricCoef', params.FloatParam, default=1, label="Friction coefficient (1/ps): ",
-                      condition='integrator in [1, 2, 4, 6]',
-                      help='The friction coefficient which couples the system to the heat bath (in inverse picoseconds)')
-        form.addParam('temperature', params.FloatParam, default=300, label="Simulation temperature (K): ",
-                      condition='integrator in [1, 2, 3, 4, 6]', help='Temperature for the simulation')
-        form.addParam('colFreq', params.FloatParam, default=1, label="Collision frequency (1/ps): ",
-                      condition='integrator in [3]',
-                      help='The friction coefficient which couples the system to the heat bath (in inverse picoseconds)')
-
-        form.addParam('errTol', params.FloatParam, default=0.001, label="Error tolerance: ",
-                      condition='integrator in [5, 6]', help='The error tolerance')
-        return form
-
-    def _defineBarostat(self, form):
-        form.addParam('addBarostat', params.BooleanParam, default=False, label="Add barostat: ",
-                      help='Add MonteCarlo Barostat to run a NPT simulation')
-        form.addParam('pressure', params.FloatParam, default=1, label="Pressure (bar): ", condition='addBarostat',
-                      help='The default pressure acting on the system (in bar)')
         return form
 
     def _defineParams(self, form):
