@@ -84,7 +84,6 @@ def generateLigandFF(ligFile, ligFF):
 def createIntegrator(params, temperature):
     stepSize = params.get('stepSize', 0.004) * picoseconds
     fric = params.get('fricCoef', 1.0) / picosecond
-    colFreq = params.get('colFreq', 1.0) / picosecond
     errTol = params.get('errTol', 0.001)
 
     integratorName = params.get('integrator', 'Langevin')
@@ -135,7 +134,7 @@ def computeRef(modelFile, variantsDict, targetPKa, params,
     chunk = params['relaxSteps']
 
     startTime = time.time()
-    for start in range(0, totalIterations, chunk):
+    for _ in range(0, totalIterations, chunk):
         finder.findReferenceEnergies(iterations=chunk, substeps=10)
         try:
             pos = cph.simulation.context.getState(getPositions=True).getPositions()
@@ -145,8 +144,6 @@ def computeRef(modelFile, variantsDict, targetPKa, params,
         except Exception as e:
             print(f"[computeRef] ERROR while checking positions: {e}")
             raise
-
-    elapsed = time.time() - startTime
 
     refenergies = {index: cph.titrations[index].referenceEnergies for index in variantsDict}
     return refenergies
@@ -335,13 +332,13 @@ def runConstantPhSimulation(params):
     print("\n--- Building System and writing XML ---")
 
     # Load ALL force fields used to create the system
-    ff_list = [params['explicitFF'], params['explicitSolvent']]
+    ffList = [params['explicitFF'], params['explicitSolvent']]
 
     # Optional ligand XML
     if params.get("ligandFF"):
-        ff_list.append(params["ligandFF"])
+        ffList.append(params["ligandFF"])
 
-    systemFF = ForceField(*ff_list)
+    systemFF = ForceField(*ffList)
 
     # Build System
     system = systemFF.createSystem(

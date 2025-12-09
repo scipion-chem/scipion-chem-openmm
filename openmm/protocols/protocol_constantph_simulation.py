@@ -200,10 +200,10 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
         with open(paramsFile, 'w') as f:
             # Imports in script
             home = Plugin.getVar(OPENMM_DIC['home'])
-            scripts_dir = os.path.join(home, 'openmm-cph')
+            scriptsDir = os.path.join(home, 'openmm-cph')
 
-            f.write(f"constantPHScript = {os.path.abspath(os.path.join(scripts_dir, 'constantph.py'))}\n")
-            f.write(f"referenceEnergyScript = {os.path.abspath(os.path.join(scripts_dir, 'reference_energy.py'))}\n")
+            f.write(f"constantPHScript = {os.path.abspath(os.path.join(scriptsDir, 'constantph.py'))}\n")
+            f.write(f"referenceEnergyScript = {os.path.abspath(os.path.join(scriptsDir, 'reference_energy.py'))}\n")
 
             # Input system
             f.write(f"inputPdb = {self.getStructureFile()}\n")
@@ -300,7 +300,6 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
 
     def createOutputStep(self):
       systemName = self.getSystemName()
-      systemFile = os.path.relpath(self.getSystemFile())
       systemFile = self._getPath(f'{systemName}.xml')
       outTopFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
       outCifFile = self._getPath(f'{systemName}.cif')
