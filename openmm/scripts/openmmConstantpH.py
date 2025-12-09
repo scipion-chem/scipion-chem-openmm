@@ -133,7 +133,6 @@ def computeRef(modelFile, variantsDict, targetPKa, params,
     totalIterations = params['equilSteps'] * params['stepEquil']
     chunk = params['relaxSteps']
 
-    startTime = time.time()
     for _ in range(0, totalIterations, chunk):
         finder.findReferenceEnergies(iterations=chunk, substeps=10)
         try:
