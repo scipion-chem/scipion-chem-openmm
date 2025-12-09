@@ -54,15 +54,6 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
 
     stepsExecutionMode = params.STEPS_PARALLEL
 
-
-    IMPLICIT_SOLVENT_MAP = {
-        'obc1': 'implicit/amber99_obc.xml',
-        'obc2': 'implicit/amber99_obc2.xml',
-        'gbn': 'implicit/gbn.xml',
-        'gbn2': 'implicit/gbn2.xml',
-        'hct': 'implicit/hct.xml'
-    }
-
     # -------------------------- DEFINE param functions ----------------------
     def _defineFFImpParams(self, form, ligandCondition='True'):
         form.addParam('ffTypeImp', params.EnumParam, default=0, choices=['Amber14', 'CHARMM36', 'Old'],
