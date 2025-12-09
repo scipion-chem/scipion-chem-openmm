@@ -22,9 +22,25 @@ from openff.toolkit.utils import get_data_file_path
 
 def parsePhValues(singlePH, onePH, manyPH):
     if singlePH:
-        return [onePH]
-    else:
-        return [float(x.strip()) for x in manyPH.split(',')]
+        return [float(onePH)]
+
+    if isinstance(manyPH, (list, tuple)):
+        return [float(v) for v in manyPH]
+
+    values = []
+    for item in str(manyPH).split(','):
+        item = item.strip().strip('"').strip("'")
+        if not item:
+            continue
+        try:
+            values.append(float(item))
+        except ValueError:
+            raise ValueError(f"Invalid pH value '{item}' in '{manyPH}'")
+
+    if not values:
+        raise ValueError(f"No valid pH values parsed from '{manyPH}'")
+
+    return values
 
 
 def parseTxtConfig(filename):
