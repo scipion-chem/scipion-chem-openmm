@@ -74,26 +74,26 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
         form.addParam('ffAmberWaterTypeImp', params.EnumParam, default=3, condition='ffTypeImp==0',
                       label="Amber water force field: ",
                       choices=['SPCE', 'OPC', 'OPC3', 'tip3p', 'tip3pfb', 'tip4pew', 'tip4pfb'],
-                      help='Water amber force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#amber14')
+                      help='Water amber force field to use. https://docs.openmm.org/latest/userguide/application/02_running_sims.html#amber14')
 
         form.addParam('ffCHARMMWaterTypeImp', params.EnumParam, default=0, condition='ffTypeImp==1',
                       label="CHARMM water force field: ", expertLevel=params.LEVEL_ADVANCED,
                       choices=['Water', 'SPCE', 'tip3p-pme-b', 'tip3p-pme-f', 'tip4pew', 'tip4p2005', 'tip5p', 'tip5pew'],
-                      help='Water CHARMM force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#charmm36')
+                      help='Water CHARMM force field to use. https://docs.openmm.org/latest/userguide/application/02_running_sims.html#charmm36')
         form.addParam('ffOldTypeImp', params.EnumParam, default=0,
                       choices=['amber96', 'amber99sb', 'amber99sbildn', 'amber99sbnmr', 'amber03', 'amber10', 'charmm_polar_2013'],
                       condition='ffTypeImp==2', label="Older force field: ",
-                      help='Select an older main force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#older-force-fields')
+                      help='Select an older main force field to use. https://docs.openmm.org/latest/userguide/application/02_running_sims.html#older-force-fields')
 
         form.addParam('ffWaterTypeImp', params.EnumParam, default=0,
                       choices=['tip3p', 'tip3pfb', 'tip4pew', 'tip4pfb', 'tip5p', 'spce', 'swm4ndp', 'opc', 'opc3'],
                       condition='ffTypeImp==2', label="Implicit water force field: ",
-                      help='Select an water force field to use. http://docs.openmm.org/latest/userguide/application/02_running_sims.html#water-models')
+                      help='Select an water force field to use. https://docs.openmm.org/latest/userguide/application/02_running_sims.html#water-models')
 
         form.addParam('constraintsImp', params.EnumParam, default=1, label="Forcefield constraints: ",
                       choices=['None', 'HBonds', 'AllBonds', 'HAngles'],
                       help='You can optionally tell OpenMM to constrain certain bond lengths and angles.'
-                           'http://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
+                           'https://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
         return form
 
     def _defineParams(self, form):
