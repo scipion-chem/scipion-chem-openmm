@@ -37,10 +37,15 @@ from pwchem.wizards import SelectMultiChainWizard, SelectElementWizard, \
 from pwchem.utils import getBaseName
 from pwchem.viewers import PyMolViewer
 
-from openmm.protocols import ProtOpenMMSystemPrep, ProtOpenDuckSimulation
+from openmm.protocols import ProtOpenMMSystemPrep, ProtOpenDuckSimulation, ProtOpenMMSystemSimulationConstantPH
 from openmm.viewers import OpenMMSystemPViewer
 
 SelectElementWizard().addTarget(protocol=ProtOpenMMSystemPrep,
+                               targets=['inputLigand'],
+                               inputs=['inputSetOfMols'],
+                               outputs=['inputLigand'])
+
+SelectElementWizard().addTarget(protocol=ProtOpenMMSystemSimulationConstantPH,
                                targets=['inputLigand'],
                                inputs=['inputSetOfMols'],
                                outputs=['inputLigand'])

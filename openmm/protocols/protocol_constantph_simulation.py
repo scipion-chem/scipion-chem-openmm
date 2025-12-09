@@ -40,6 +40,7 @@ from pwchem import Plugin as pwchemPlugin
 from .. import Plugin
 from pwchem.utils import getBaseName, convertToSdf
 from ..constants import OPENMM_DIC
+from pwchem.constants import RDKIT_DIC
 from ..objects import OpenMMSystem
 
 from pwem.convert import cifToPdb
@@ -49,6 +50,8 @@ from openmm.protocols.protocol_system_prep import ProtOpenMMSystemPrep
 
 STRUCTURE, LIGAND = 0, 1
 LIG_INPUT = f'inputFrom == {LIGAND}'
+scriptLigPrepName = 'rdkit_addHydrogens.py'
+
 class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenMMSystemPrep):
     """
     This protocol will start a Molecular Dynamics simulation with constant pH specified by user.
@@ -127,9 +130,9 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
                       help='The pH values to use, separated with commas.')
 
         ffGroup = form.addGroup('Main Force Field Parameters')
-        self._defineFFParams(ffGroup, False)
+        self._defineFFParams(ffGroup, ligandCondition=LIG_INPUT)
         ffGroup = form.addGroup('Implicit Force Field Parameters')
-        self._defineFFImpParams(ffGroup, False)
+        self._defineFFImpParams(ffGroup, ligandCondition=LIG_INPUT)
 
         simGroup = form.addGroup('Simulation Steps')
         simGroup.addParam('saveInterval', params.IntParam, default=100, label="Trajectory save interval: ",
@@ -203,6 +206,10 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
     def createParamsFileStep(self):
         """Write simulation parameters to TXT file."""
         paramsFile = self.getParamsFile()
+
+        recFile = self.getReceptorPDB()
+        molFile = self.getSpecifiedMolFile() if self.inputFrom.get() == LIGAND else None
+
         with open(paramsFile, 'w') as f:
             # Imports in script
             home = Plugin.getVar(OPENMM_DIC['home'])
@@ -212,7 +219,8 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
             f.write(f"referenceEnergyScript = {os.path.abspath(os.path.join(scriptsDir, 'reference_energy.py'))}\n")
 
             # Input system
-            f.write(f"inputPdb = {self.getStructureFile()}\n")
+            #f.write(f"inputPdb = {self.getStructureFile()}\n")
+            f.write(f"inputPdb = {recFile}\n")
 
             # Force fields
             mff, wff = self.getFFFiles()
@@ -223,8 +231,8 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
             f.write(f"implicitFF = {mffImp}\n")
             f.write(f"implicitSolvent = {wffImp}\n")
             f.write(f"constraintsImp = {self.getEnumText('constraintsImp')}\n")
-            # f.write(f"ligandFile = {os.path.abspath(self.inputSystem.get().getLigTopologyFile())}\n")
-            # f.write(f"ligandFF = {os.path.abspath(self._getExtraPath('ligandFF.xml'))}\n")
+            f.write(f"ligandFile = {molFile}\n")
+            f.write(f"ligandFF = {self.getLigandFFVersion()}\n")
 
             # Cutoffs and hydrogen mass
             f.write(f"nonBondedMethodExp = {self.getEnumText('nonbondedMethodExp')}\n")
@@ -352,6 +360,39 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
       return ws
 
     # --------------------------- UTILS functions -----------------------------------
+    def getLigandFFVersion(self):
+      ffOption = self.ffSmallType.get()
+      if ffOption == 0:
+        return self.getEnumText('gaffVersion')
+      elif ffOption == 1:
+        return self.getEnumText('smirnoffVersion')
+      elif ffOption == 2:
+        return self.getEnumText('espalomaVersion')
+
+    def getSpecifiedMolFile(self):
+        myMol = None
+        for mol in self.inputSetOfMols.get():
+          if mol.__str__() == self.inputLigand.get():
+            myMol = mol.clone()
+            break
+        if myMol == None:
+            print('The input ligand is not found')
+            return None
+        else:
+            molFile = myMol.getPoseFile()
+            sdfFile = convertToSdf(self, molFile)
+            paramFile = self.writePrepParamsFile([sdfFile])
+            pwchemPlugin.runScript(self, scriptLigPrepName, paramFile, env=RDKIT_DIC, cwd=self._getPath())
+            return os.path.join(self.getLigandFileDir(), os.listdir(self.getLigandFileDir())[0])
+
+    def getReceptorPDB(self):
+      recPDB = os.path.abspath(self._getExtraPath(f'{self.getSystemName()}.pdb'))
+      if not os.path.exists(recPDB):
+        recFile = self.getReceptorFilename()
+        args = f'{recFile} --output {recPDB}'
+        pwchemPlugin.runOPENBABEL(self, 'pdbfixer', args=args, cwd=self._getExtraPath())
+      return recPDB
+
     def getFFFiles(self):
         if self.ffType.get() == 0:
             mFF = 'amber14-all.xml' if self.ffAmberType.get() == 0 \
@@ -398,13 +439,24 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
         return os.path.abspath(pdbFile)
 
     def getSystemFile(self): #we will need to change this
-        proteinFile = self.inputStructure.get().getFileName()
-        name = os.path.splitext(os.path.basename(proteinFile))[0]
-        systemName = self._getPath(f'{name}_system.xml')
-        return os.path.abspath(systemName)
+        #proteinFile = self.inputStructure.get().getFileName()
+        #name = os.path.splitext(os.path.basename(proteinFile))[0]
+        #systemName = self._getPath(f'{name}_system.xml')
+        #return os.path.abspath(systemName)
+        systemBasename = self.getSystemName()
+        outSystemFile = self._getPath(f'{systemBasename}_system.xml')
+        return os.path.abspath(outSystemFile)
 
     def getSystemName(self):
-        return getBaseName(self.getStructureFile())
+        #return getBaseName(self.getStructureFile())
+        return getBaseName(self.getReceptorFilename())
+
+    def getReceptorFilename(self):
+      if self.inputFrom.get() == STRUCTURE:
+          proteinFile = self.inputStructure.get().getFileName()
+      elif self.inputFrom.get() == LIGAND:
+          proteinFile = self.inputSetOfMols.get().getProteinFile()
+      return os.path.abspath(proteinFile)
 
     def getNFrames(self):
         totalSteps = self.prodSteps.get() * self.stepProd.get()

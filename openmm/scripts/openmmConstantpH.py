@@ -147,6 +147,33 @@ def computeRef(modelFile, variantsDict, targetPKa, params,
     refenergies = {index: cph.titrations[index].referenceEnergies for index in variantsDict}
     return refenergies
 
+def addLigand(modeller, ligFile):
+    '''Add ligand topology and coordinates to the modeller'''
+    molecule = Molecule.from_file(ligFile)
+    ligTop = molecule.to_topology().to_openmm()
+
+    # Make OpenMM happy: name ligand
+    for residue in ligTop.residues():
+        residue.name = "LIG"
+
+    positions = molecule.conformers[0]
+    ligPos = positions.m_as("nanometer") * nanometers
+
+    modeller.add(ligTop, ligPos)
+    return modeller
+
+
+def addLigandFF(forcefield, ligFile, ligFF):
+    '''
+    Load ligand FF XML and attach it to the OpenMM forcefield
+    '''
+    if not os.path.exists(ligFF):
+        generateLigandFF(ligFile, ligFF)
+
+    explicitFF_files = [params['explicitFF'], params['explicitSolvent'], ligFF]
+
+    return ForceField(*explicitFF_files)
+
 
 # ---------------------------
 # Main simulation function
@@ -208,6 +235,15 @@ def runConstantPhSimulation(params):
     variantsDict = {}
 
     modeller = Modeller(pdb.topology, pdb.positions)
+
+    if params.get('ligandFile'):
+        print("[run] Adding ligand...")
+        modeller = addLigand(modeller, params['ligandFile'])
+
+        # Merge ligand force field into explicitFF
+        if params.get("ligandFF"):
+            print("[run] Adding ligand force field to explicitFF...")
+            explicitFF = ForceField(params['explicitFF'], params['explicitSolvent'], params['ligandFF'])
 
     if (params['addHydrogens']):
         modeller.addHydrogens(explicitFF, pH=float(params['hPH']))
@@ -327,10 +363,10 @@ def runConstantPhSimulation(params):
     # -----------------------------------
 
     # Remove ligands
-    ligands = [res for res in modeller.topology.residues() if res.name == 'LIG']
-    if ligands:
-        print(f"[run] Removing {len(ligands)} LIG residues")
-        modeller.delete(ligands)
+    #ligands = [res for res in modeller.topology.residues() if res.name == 'LIG']
+    #if ligands:
+    #    print(f"[run] Removing {len(ligands)} LIG residues")
+    #    modeller.delete(ligands)
 
     # Use the filtered topology and positions in ConstantPH
     filteredTopology = modeller.topology
@@ -341,8 +377,8 @@ def runConstantPhSimulation(params):
     # Load ALL force fields used to create the system
     ffList = [params['explicitFF'], params['explicitSolvent']]
 
-    # Optional ligand XML
     if params.get("ligandFF"):
+        print("[run] Adding ligand force field...")
         ffList.append(params["ligandFF"])
 
     systemFF = ForceField(*ffList)
