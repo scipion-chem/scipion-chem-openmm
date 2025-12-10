@@ -63,22 +63,6 @@ def parseTxtConfig(filename):
                     params[k] = [x.strip() for x in v.split(',')] if ',' in v else v
     return params
 
-def generateLigandFF(ligFile, ligFF):
-    sdf = get_data_file_path(ligFile)
-    ligand = Molecule(sdf)
-
-    if ligand.n_conformers == 0:
-        print("[INFO] No conformers found, generating 3D conformer...")
-        ligand.generate_conformers(n_conformers=1)
-
-    offFF = offForceField("openff-2.1.0.offxml")
-    system = offFF.create_openmm_system(ligand.to_topology())
-
-    with open(ligFF, "w") as f:
-        f.write(XmlSerializer.serialize(system))
-
-    print(f"[INFO] Ligand XML force field saved as: {ligFF}")
-
 # ---------------------------
 # Integrator factory
 # ---------------------------
@@ -161,19 +145,6 @@ def addLigand(modeller, ligFile):
     modeller.add(ligTop, ligPos)
     return modeller
 
-
-def addLigandFF(forcefield, ligFile, ligFF):
-    '''
-    Load ligand FF XML and attach it to the OpenMM forcefield
-    '''
-    if not os.path.exists(ligFF):
-        generateLigandFF(ligFile, ligFF)
-
-    explicitFF_files = [params['explicitFF'], params['explicitSolvent'], ligFF]
-
-    return ForceField(*explicitFF_files)
-
-
 # ---------------------------
 # Main simulation function
 # ---------------------------
@@ -222,7 +193,7 @@ def runConstantPhSimulation(params):
     # Create integrators
     # ---------------------------
     integrator = createIntegrator(params, temperature)
-    relaxationIntegrator = createIntegrator(params, temperature)  # Can have different params if needed
+    relaxationIntegrator = createIntegrator(params, temperature)
     print("[run] Integrators created.")
 
     # -----------------------------------
@@ -261,7 +232,6 @@ def runConstantPhSimulation(params):
     waterModel = params['explicitSolvent']
     wModel = os.path.splitext(os.path.basename(waterModel))[0]
     modeller.addSolvent(explicitFF, model=wModel, **kwargs)
-
 
     # ASP
     if 'ASP' in params['residuesToTitrate']:
@@ -380,7 +350,6 @@ def runConstantPhSimulation(params):
     filteredTopology = modeller.topology
     filteredPositions = modeller.positions
 
-    #todo it does not work with ligands
     print("\n--- Creating simulation ---")
     cph = ConstantPH(
         filteredTopology, filteredPositions, phValues,
@@ -483,10 +452,6 @@ def runConstantPhSimulation(params):
         PDBxFile.writeFile(cph.simulation.topology, state.getPositions(), f)
 
     print("[run] Final snapshot written.")
-
-# ---------------------------
-# Entry point
-# ---------------------------
 
 if __name__ == "__main__":
 

@@ -240,8 +240,9 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
             f.write(f"implicitFF = {mffImp}\n")
             f.write(f"implicitSolvent = {wffImp}\n")
             f.write(f"constraintsImp = {self.getEnumText('constraintsImp')}\n")
-            f.write(f"ligandFile = {molFile}\n")
-            f.write(f"ligandFF = {self.getLigandFFVersion()}\n")
+            if molFile:
+                f.write(f"ligandFile = {molFile}\n")
+                f.write(f"ligandFF = {self.getLigandFFVersion()}\n")
 
             # Cutoffs and hydrogen mass
             f.write(f"nonBondedMethodExp = {self.getEnumText('nonbondedMethodExp')}\n")
