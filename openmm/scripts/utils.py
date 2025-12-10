@@ -72,6 +72,11 @@ def addMoleculesFF(forcefield, ligFile, ligFF):
   from openff.toolkit.topology import Molecule
   molecule = Molecule.from_file(ligFile)
   generator = getGenerator(ligFF)
-  tempGenerator = generator(molecules=molecule, forcefield=ligFF, cache="molecules_ff.json")
-  forcefield.registerTemplateGenerator(tempGenerator.generator)
+  if '0.4.0' in ligFF.lower():
+      here = os.path.dirname(os.path.abspath(__file__))
+      model = os.path.abspath(os.path.join(here, "../models/espaloma-latest.pt"))
+      tempGen = generator(molecules=molecule, forcefield=model, cache="molecules_ff.json")
+  else:
+      tempGen = generator(molecules=molecule, forcefield=ligFF, cache="molecules_ff.json")
+  forcefield.registerTemplateGenerator(tempGen.generator)
   return forcefield

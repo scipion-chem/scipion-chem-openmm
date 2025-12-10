@@ -377,13 +377,6 @@ def runConstantPhSimulation(params):
     # Build ConstantPH Simulation
     # -----------------------------------
 
-    # Remove ligands
-    #ligands = [res for res in modeller.topology.residues() if res.name == 'LIG']
-    #if ligands:
-    #    print(f"[run] Removing {len(ligands)} LIG residues")
-    #    modeller.delete(ligands)
-
-    # Use the filtered topology and positions in ConstantPH
     filteredTopology = modeller.topology
     filteredPositions = modeller.positions
 
