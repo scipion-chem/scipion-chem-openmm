@@ -51,6 +51,8 @@ from openmm.protocols.protocol_system_prep import ProtOpenMMSystemPrep
 STRUCTURE, LIGAND = 0, 1
 LIG_INPUT = f'inputFrom == {LIGAND}'
 scriptLigPrepName = 'rdkit_addHydrogens.py'
+CATION_NAMES = ['Cs+', 'K+', 'Li+', 'Na+', 'Rb+']
+ANION_NAMES = ['Cl-', 'Br-', 'F-', 'I-']
 
 class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenMMSystemPrep):
     """
@@ -192,6 +194,13 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
         bGroup = form.addGroup('Barostat')
         self._defineBarostat(bGroup)
 
+        form.addSection(label='Solvent box')
+        sGroup = form.addGroup('Boundary box')
+        self._defineBoxParams(sGroup)
+
+        iGroup = form.addGroup('Ions')
+        self._defineSaltParams(iGroup)
+
 
         form.addParallelSection(threads=4, mpi=1)
 
@@ -303,6 +312,17 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
             finalCif = self._getPath(f"{sysName}.cif")
             f.write(f"finalCif = {os.path.abspath(finalCif)}\n")
             f.write(f'systemXml = {self.getSystemFile()}\n')
+
+            # Solvation box etc
+            if self.sizeType == 0:
+                f.write(f"boxSize = {self.distA.get()}, {self.distB.get()}, {self.distC.get()}\n")
+            else:
+                f.write(f"padding = {self.padDist.get()}\n")
+
+            f.write(f"saltConc = {self.saltConc.get()}\n")
+            f.write(f"neutralize = {self.neutralize.get()}\n")
+            f.write(f"cationType = {self.getEnumText('cationType')}\n")
+            f.write(f"anionType = {self.getEnumText('anionType')}\n")
 
 
         print(f"Parameters file created at: {paramsFile}")

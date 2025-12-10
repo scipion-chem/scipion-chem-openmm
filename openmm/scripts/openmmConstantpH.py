@@ -16,6 +16,7 @@ from openff.toolkit.topology import Molecule
 from openff.toolkit.typing.engines.smirnoff import ForceField as offForceField
 from openff.toolkit.utils import get_data_file_path
 from openmm import XmlSerializer
+from utils import parseParams, addMoleculesFF
 
 # ---------------------------
 # Helpers
@@ -151,12 +152,10 @@ def addLigand(modeller, ligFile):
     '''Add ligand topology and coordinates to the modeller'''
     molecule = Molecule.from_file(ligFile)
     ligTop = molecule.to_topology().to_openmm()
-
-    # Make OpenMM happy: name ligand
     for residue in ligTop.residues():
         residue.name = "LIG"
-
     positions = molecule.conformers[0]
+
     ligPos = positions.m_as("nanometer") * nanometers
 
     modeller.add(ligTop, ligPos)
@@ -237,16 +236,32 @@ def runConstantPhSimulation(params):
     modeller = Modeller(pdb.topology, pdb.positions)
 
     if params.get('ligandFile'):
-        print("[run] Adding ligand...")
+        print("[run] Adding ligand coordinates...")
         modeller = addLigand(modeller, params['ligandFile'])
 
-        # Merge ligand force field into explicitFF
-        if params.get("ligandFF"):
-            print("[run] Adding ligand force field to explicitFF...")
-            explicitFF = ForceField(params['explicitFF'], params['explicitSolvent'], params['ligandFF'])
+        print("[run] Adding ligand template to ForceField...")
+        explicitFF = addMoleculesFF(explicitFF, params['ligandFile'], params['ligandFF'])
+        implicitFF = addMoleculesFF(implicitFF, params['ligandFile'], params['ligandFF'])
 
-    if (params['addHydrogens']):
+    if params['addHydrogens']:
+        print("[run] Adding hydrogens...")
         modeller.addHydrogens(explicitFF, pH=float(params['hPH']))
+
+
+    boxSize = params.get('boxSize', None)
+    if boxSize:
+        bSize = list(map(float, params['boxSize'].split(',')))
+        kwargs = {"boxSize": Vec3(bSize[0], bSize[1], bSize[2]) * nanometers}
+    else:
+        kwargs = {"padding": float(params['padding'])}
+
+    kwargs.update({"ionicStrength": float(params['saltConc']) * molar, "neutralize": (params['neutralize']),
+                   "positiveIon": params['cationType'], "negativeIon": params['anionType']})
+
+    waterModel = params['explicitSolvent']
+    wModel = os.path.splitext(os.path.basename(waterModel))[0]
+    modeller.addSolvent(explicitFF, model=wModel, **kwargs)
+
 
     # ASP
     if 'ASP' in params['residuesToTitrate']:
@@ -372,34 +387,6 @@ def runConstantPhSimulation(params):
     filteredTopology = modeller.topology
     filteredPositions = modeller.positions
 
-    print("\n--- Building System and writing XML ---")
-
-    # Load ALL force fields used to create the system
-    ffList = [params['explicitFF'], params['explicitSolvent']]
-
-    if params.get("ligandFF"):
-        print("[run] Adding ligand force field...")
-        ffList.append(params["ligandFF"])
-
-    systemFF = ForceField(*ffList)
-
-    # Build System
-    system = systemFF.createSystem(
-        filteredTopology,
-        nonbondedMethod=explicitParams['nonbondedMethod'],
-        nonbondedCutoff=explicitParams['nonbondedCutoff'],
-        constraints=explicitParams['constraints'],
-        hydrogenMass=explicitParams['hydrogenMass'],
-        rigidWater=False
-    )
-
-    # Write XML
-    systemXml = params['systemXml']
-    with open(systemXml, "w") as f:
-        f.write(XmlSerializer.serialize(system))
-
-    print(f"[run] OpenMM system XML written to: {systemXml}")
-
     #todo it does not work with ligands
     print("\n--- Creating simulation ---")
     cph = ConstantPH(
@@ -411,6 +398,11 @@ def runConstantPhSimulation(params):
         integrator, relaxationIntegrator
     )
     print("[run] ConstantPH object created.")
+
+    systemXml = params['systemXml']
+    with open(systemXml, "w") as f:
+        f.write(XmlSerializer.serialize(cph.simulation.system))
+    print(f"[run] Constant pH system XML written to: {systemXml}")
 
     trajFile = params['trajFile']
     logFile = params['logFile']
