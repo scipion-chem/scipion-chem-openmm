@@ -453,6 +453,10 @@ def runConstantPhSimulation(params):
 
     print("[run] Final snapshot written.")
 
+# ---------------------------
+# Entry point
+# ---------------------------
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()

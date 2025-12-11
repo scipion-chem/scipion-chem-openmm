@@ -208,9 +208,10 @@ class ProtOpenMMSystemSimulationConstantPH(ProtOpenMMSystemSimulation, ProtOpenM
     def _insertAllSteps(self):
       self._insertFunctionStep(self.createParamsFileStep)
       self._insertFunctionStep(self.productionRunStep)
-      #if self.useOpenmmdl.get() and self.inputSystem.get().getLigTopologyFile():
-      #    self._insertFunctionStep(self.analyzeStep)
       self._insertFunctionStep(self.createOutputStep)
+      if self.useOpenmmdl.get() and LIG_INPUT:
+          self._insertFunctionStep(self.analyzeStep)
+
 
     def createParamsFileStep(self):
         """Write simulation parameters to TXT file."""
