@@ -29,7 +29,7 @@ from pyworkflow.tests import BaseTest, DataSet, setupTestProject
 from pwchem.protocols import ProtChemPrepareReceptor
 from pwchem.tests import TestPrepareReceptor, TestExtractLigand
 
-from ..protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation, ProtOpenMMInteractionEnergy, ProtOpenMMSystemSimulationConstantPH
+from ..protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation, ProtOpenMMInteractionEnergy
 
 STRUCTURE, LIGAND = 0, 1
 
@@ -86,6 +86,17 @@ class TestOpenMMSimulation(TestOpenMMPrepareSystem):
       cls.launchProtocol(protSim)
       return protSim
 
+  @classmethod
+  def _runSimulationCPH(cls, protPrepareS):
+      protSim = cls.newProtocol(
+          ProtOpenMMSystemSimulation,
+          inputSystem=protPrepareS.outputSystem,
+          cph=True, singlePH=True, onePH=3.0, stepSize=0.002,
+          maxIter=100, nSteps=100, nTraj=10)
+
+      cls.launchProtocol(protSim)
+      return protSim
+
   def test(self):
       self._runPrepareReceptor()
       self._waitOutput(self.protPrepareReceptor, 'outputStructure', sleepTime=10)
@@ -104,6 +115,27 @@ class TestOpenMMSimulation(TestOpenMMPrepareSystem):
       self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
 
       protSim = self._runSimulation(protPrepare)
+      self._waitOutput(protSim, 'outputSystem', sleepTime=10)
+      self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
+
+  def test_cph(self):
+      self._runPrepareReceptor()
+      self._waitOutput(self.protPrepareReceptor, 'outputStructure', sleepTime=10)
+      protPrepare = self._runPrepareSystem(self.protPrepareReceptor)
+      self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
+
+      protSim = self._runSimulationCPH(protPrepare)
+      self._waitOutput(protSim, 'outputSystem', sleepTime=10)
+      self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
+
+  def test2_cph(self):
+      protExtract = self._runExtractLigand(self.protImportPDB)
+      self._waitOutput(protExtract, 'outputSmallMolecules')
+
+      protPrepare = self._runPrepareSystem(protExtract, inputFrom=LIGAND)
+      self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
+
+      protSim = self._runSimulationCPH(protPrepare)
       self._waitOutput(protSim, 'outputSystem', sleepTime=10)
       self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
 
@@ -144,36 +176,3 @@ class TestOpenMMInteractions(TestOpenMMSimulation):
         protInt = self._runInteractions(protExtract, inputFrom=LIGAND)
         self._waitOutput(protInt, 'outputSmallMolecules', sleepTime=10)
         self.assertIsNotNone(getattr(protInt, 'outputSmallMolecules', None))
-
-class TestOpenMMSimulationCPH(TestOpenMMPrepareSystem):
-  @classmethod
-  def _runSimulation(cls, protPrepareS):
-      protSim = cls.newProtocol(
-        ProtOpenMMSystemSimulation,
-        inputSystem=protPrepareS.outputSystem,
-        cph=True, singlePH=True, onePH=3.0, stepSize=0.002,
-        maxIter=100, nSteps=100, nTraj=10)
-
-      cls.launchProtocol(protSim)
-      return protSim
-
-  def test(self):
-      self._runPrepareReceptor()
-      self._waitOutput(self.protPrepareReceptor, 'outputStructure', sleepTime=10)
-      protPrepare = self._runPrepareSystem(self.protPrepareReceptor)
-      self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
-
-      protSim = self._runSimulation(protPrepare)
-      self._waitOutput(protSim, 'outputSystem', sleepTime=10)
-      self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
-
-  def test2(self):
-      protExtract = self._runExtractLigand(self.protImportPDB)
-      self._waitOutput(protExtract, 'outputSmallMolecules')
-
-      protPrepare = self._runPrepareSystem(protExtract, inputFrom=LIGAND)
-      self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
-
-      protSim = self._runSimulation(protPrepare)
-      self._waitOutput(protSim, 'outputSystem', sleepTime=10)
-      self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
