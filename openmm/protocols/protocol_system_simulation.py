@@ -305,8 +305,6 @@ class ProtOpenMMSystemSimulation(EMProtocol):
             f.write(f"cationType = {solvParams.get('cationType')}\n")
             f.write(f"anionType = {solvParams.get('anionType')}\n")
 
-        print(f"Parameters file created at: {paramsFile}")
-
     def cphSimulateStep(self):
         paramsFile = self.getParamsFile()
         Plugin.runScript(self, 'openmmConstantpH.py', args=f'--params {paramsFile}', env=OPENMM_DIC,

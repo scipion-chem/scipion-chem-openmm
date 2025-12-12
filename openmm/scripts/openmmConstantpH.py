@@ -73,7 +73,6 @@ def createIntegrator(params, temperature):
 
     integratorName = params.get('integrator', 'Langevin')
 
-    print(f"[integrator] Creating integrator '{integratorName}' stepSize={stepSize}, temp={temperature}")
     if integratorName == 'Verlet':
         return VerletIntegrator(stepSize)
     elif integratorName == 'Langevin':
@@ -150,12 +149,8 @@ def addLigand(modeller, ligFile):
 # ---------------------------
 
 def runConstantPhSimulation(params):
-
-    print("\n--- Loading system ---")
-    print(f"[params] inputPdb: {params.get('inputPdb')}")
     pdb = PDBFile(params['inputPdb'])
 
-    print("[run] Creating force fields...")
     explicitFF = ForceField(params['explicitFF'], params['explicitSolvent'])
     print("  explicit ForceField created.")
     implicitFF = ForceField(params['implicitFF'], params['implicitSolvent'])
@@ -185,8 +180,6 @@ def runConstantPhSimulation(params):
         constraints=params['constraintsImp']
     )
 
-    print(f"[run] NB params explicit_cutoff={explicitParams['nonbondedCutoff']}, implicit_cutoff={implicitParams['nonbondedCutoff']}")
-
     temperature = params['temperature'] * kelvin
 
     # ---------------------------
@@ -199,8 +192,6 @@ def runConstantPhSimulation(params):
     # -----------------------------------
     # Reference energies
     # -----------------------------------
-
-    print("\n--- Computing reference energies ---")
     refenergies = {}
     variantsDict = {}
 
@@ -325,23 +316,16 @@ def runConstantPhSimulation(params):
     phValues = parsePhValues(
         params['singlePH'], params['onePH'], params['manyPH']
     )
-    print(f"[run] pH values to run: {phValues}")
 
     simVariants = {}
     simRefenergies = {}
 
     for residue in pdb.topology.residues():
-        # Ignorar ligandos LIG
         if residue.name == 'LIG':
-            print(f"[run] Ignoring ligand residue {residue.name} at index {residue.index}")
             continue
         if residue.name in variantsDict:
             simVariants[residue.index] = variantsDict[residue.name]
             simRefenergies[residue.index] = refenergies[residue.name]
-
-    print("Titrated residues:")
-    for k, v in simVariants.items():
-        print("  Residue", k, "->", v)
 
     # -----------------------------------
     # Build ConstantPH Simulation
@@ -350,7 +334,6 @@ def runConstantPhSimulation(params):
     filteredTopology = modeller.topology
     filteredPositions = modeller.positions
 
-    print("\n--- Creating simulation ---")
     cph = ConstantPH(
         filteredTopology, filteredPositions, phValues,
         explicitFF, implicitFF,
@@ -364,7 +347,6 @@ def runConstantPhSimulation(params):
     systemXml = params['systemXml']
     with open(systemXml, "w") as f:
         f.write(XmlSerializer.serialize(cph.simulation.system))
-    print(f"[run] Constant pH system XML written to: {systemXml}")
 
     trajFile = params['trajFile']
     logFile = params['logFile']
@@ -395,7 +377,6 @@ def runConstantPhSimulation(params):
     )
 
     if params.get('addBarostat', False):
-        print("Adding barostat...")
         cph.simulation.system.addForce(
             MonteCarloBarostat(params['pressure'] * bar, temperature)
         )
@@ -403,7 +384,6 @@ def runConstantPhSimulation(params):
         print("[run] Barostat added and context reinitialized.")
 
     if params.get('addMinimization', True):
-        print("Minimizing...")
         cph.simulation.minimizeEnergy(
             tolerance=params['minimTol'] * kilojoules_per_mole / nanometer ,
             maxIterations=params['maxIter']
@@ -419,7 +399,6 @@ def runConstantPhSimulation(params):
     # Equilibration
     # -----------------------------------
 
-    print("\n--- Equilibration ---")
     for idx in range(equilSteps):
         cph.simulation.step(stepEquil)
         cph.attemptMCStep(temperature)
@@ -430,7 +409,6 @@ def runConstantPhSimulation(params):
     # -----------------------------------
     # Production
     # -----------------------------------
-    print("\n--- Production ---")
     for prodIdx in range(prodSteps):
         cph.simulation.step(stepProd)
         cph.attemptMCStep(temperature)
