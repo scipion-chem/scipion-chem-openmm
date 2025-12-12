@@ -40,6 +40,7 @@ from pwchem import Plugin as pwchemPlugin
 from .. import Plugin
 from ..constants import OPENMM_DIC
 from ..objects import OpenMMSystem
+from pwem.convert import cifToPdb
 
 
 class ProtOpenMMSystemSimulation(EMProtocol):
@@ -112,6 +113,52 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         form.addParam('nSteps', params.IntParam, default=10000, label="Number of simulation steps: ",
                       help='Number of steps for simulation')
 
+        form.addParam('cph', params.BooleanParam, default=False, label="Simulate at non-neutral ph: ",
+                        help='Whether to simulate at non-neutral ph. If True, it will use OpenMM Constant pH (https://github.com/openmm/openmm-cph).')
+
+        phGroup = form.addGroup('pH', condition='cph')
+        phGroup.addParam('singlePH', params.BooleanParam, default=True, label="Use one single pH value: ",
+                         help='Choose whether to use one single pH value or an array of them.')
+        phGroup.addParam('onePH', params.FloatParam, default=7.5, label="pH value: ", condition='singlePH',
+                         help='The pH value to use.')
+        phGroup.addParam('manyPH', params.StringParam, default='6.5, 7.0, 7.5, 8.0, 8.5', label="pH values: ",
+                         condition='not singlePH',
+                         help='The pH values to use, separated with commas.')
+        titrGroup = form.addGroup('Titration', condition='cph')
+        titrGroup.addParam('residuesToTitrate', params.StringParam, default='ASP, GLU, CYS, HIS, LYS',
+                           label="Residues to titrate",
+                           help='Residues that will be considered for constant pH titration')
+        ffGroup = form.addGroup('Constant pH parameters', condition='cph')
+        ffGroup.addParam('implicitModel', params.EnumParam, default=1,
+                         choices=['OBC1', 'OBC2', 'GBn', 'GBn2'],
+                         label='Implicit solvent model: ',
+                         help='Choose the Generalized Born implicit solvent model (only for Amber force fields)')
+        ffGroup.addParam('constraintsImp', params.EnumParam, default=1, label="Implicit force field constraints: ",
+                         choices=['None', 'HBonds', 'AllBonds', 'HAngles'], condition='cph',
+                         help='You can optionally tell OpenMM to constrain certain bond lengths and angles.'
+                              'https://docs.openmm.org/latest/userguide/application/02_running_sims.html#constraints')
+        ffGroup.addParam('nonbondedMethodImp', params.EnumParam, default=1, condition='cph',
+                         choices=['NoCutoff', 'CutoffNonPeriodic', 'CutoffPeriodic', 'Ewald', 'PME', 'LJPME'],
+                         label="Implicit non bonded method: ",
+                         help='Non bonded method to simulate the non bonded atom interactions')
+        ffGroup.addParam('implicitCutoff', params.FloatParam, default=2.0, label="Implicit cutoff (nm)",
+                         expertLevel=params.LEVEL_ADVANCED, condition='cph',
+                         help='Cutoff distance for nonbonded interactions in implicit solvent')
+        simGroup = form.addGroup('Constant pH simulation', condition='cph', expertLevel=params.LEVEL_ADVANCED,)
+        simGroup.addParam('relaxSteps', params.IntParam, default=500, label="Relaxation steps",
+                          expertLevel=params.LEVEL_ADVANCED,
+                          help='Number of steps for initial relaxation of the system')
+        simGroup.addParam('equilSteps', params.IntParam, default=100, label="Equilibration steps",
+                          expertLevel=params.LEVEL_ADVANCED,
+                          help='Number of equilibration cycles')
+        simGroup.addParam('stepEquil', params.IntParam, default=1, label="Steps per equilibration cycle",
+                          expertLevel=params.LEVEL_ADVANCED,
+                          help='Number of MD steps per equilibration cycle')
+        simGroup.addParam('stepProd', params.IntParam, default=1, label="Steps per production cycle",
+                          expertLevel=params.LEVEL_ADVANCED,
+                          help='Number of MD steps per production cycle')
+
+
         tGroup = form.addGroup('Trajectory')
         tGroup.addParam('nTraj', params.IntParam, default=100, label="Steps interval: ",
                         help='Save the state of the system each x steps for the trajectory')
@@ -131,11 +178,139 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
 
     def _insertAllSteps(self):
-      self._insertFunctionStep(self.simulateStep)
+      if (self.cph.get()):
+        self._insertFunctionStep(self.createParamsFileStep)
+        self._insertFunctionStep(self.cphSimulateStep)
+      else:
+        self._insertFunctionStep(self.simulateStep)
       if self.useOpenmmdl.get() and self.inputSystem.get().getLigTopologyFile():
         self._insertFunctionStep(self.analyzeStep)
       self._insertFunctionStep(self.createOutputStep)
 
+    def createParamsFileStep(self):
+        """Write simulation parameters to TXT file."""
+        paramsFile = self.getParamsFile()
+
+        recFile = self.getStructureFile() #cif file
+        #pdbFile = self._getExtraPath(f'{self.getSystemName()}.pdb')
+        #cifToPdb(os.path.abspath(recFile), (pdbFile))
+        molFile = self.inputSystem.get().getLigTopologyFile()
+
+        txtFilePath = os.path.join(os.path.dirname(recFile), 'extra')
+        txtFile = os.path.join(txtFilePath, 'solvationParams.txt')
+        pdbFile = os.path.join(txtFilePath, f'{self.getSystemName().split("_")[0]}.pdb')
+
+        solvParams = self.readSolvParams(txtFile)
+        with open(paramsFile, 'w') as f:
+            # Imports in script
+            home = Plugin.getVar(OPENMM_DIC['home'])
+            scriptsDir = os.path.join(home, 'openmm-cph')
+
+            f.write(f"constantPHScript = {os.path.abspath(os.path.join(scriptsDir, 'constantph.py'))}\n")
+            f.write(f"referenceEnergyScript = {os.path.abspath(os.path.join(scriptsDir, 'reference_energy.py'))}\n")
+
+            # Input system
+            f.write(f"inputPdb = {os.path.abspath(pdbFile)}\n")
+
+            # Force fields
+            mff, wff = self.getFFFiles()
+            f.write(f"explicitFF = {mff}\n")
+            f.write(f"explicitSolvent = {wff}\n")
+            f.write(f"constraintsExp = {solvParams.get('constraints')}\n")
+            mffImp, wffImp = self.getImplicitFF()
+            f.write(f"implicitFF = {mffImp}\n")
+            f.write(f"implicitSolvent = {wffImp}\n")
+            f.write(f"constraintsImp = {self.getEnumText('constraintsImp')}\n")
+            if molFile:
+                f.write(f"ligandFile = {os.path.abspath(molFile)}\n")
+                f.write(f"ligandFF = {solvParams.get('ligandFF')}\n")
+
+            # Cutoffs and hydrogen mass
+            f.write(f"nonBondedMethodExp = {solvParams.get('nonbondedMethod')}\n")
+            f.write(f"nonBondedMethodImp = {self.getEnumText('nonbondedMethodImp')}\n")
+            f.write(f"explicitCutoff = {solvParams.get('nonbondedCutoff')}\n")
+            f.write(f"implicitCutoff = {self.implicitCutoff.get()}\n")
+
+            # Simulation steps
+            f.write(f"nSteps = {self.nSteps.get()}\n")
+            f.write(f"relaxSteps = {self.relaxSteps.get()}\n")
+            f.write(f"equilSteps = {self.equilSteps.get()}\n")
+            f.write(f"stepEquil = {self.stepEquil.get()}\n")
+            f.write(f"stepProd = {self.stepProd.get()}\n")
+            f.write(f"reportEvery = {self.nTraj.get()}\n")
+
+            # Residues to titrate
+            f.write(f"residuesToTitrate = {self.residuesToTitrate.get()}\n")
+
+            home = Plugin.getVar(OPENMM_DIC['home'])
+            aspPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/ASP.pdb')
+            gluPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/GLU.pdb')
+            cysPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/CYS.pdb')
+            hisPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/HIS.pdb')
+            lysPDB = os.path.abspath(f'{home}/openmm-cph/model-compounds/LYS.pdb')
+            # Reference models
+            f.write(f"aspModel = {aspPDB}\n")
+            f.write(f"gluModel = {gluPDB}\n")
+            f.write(f"hisModel = {hisPDB}\n")
+            f.write(f"cysModel = {cysPDB}\n")
+            f.write(f"lysModel = {lysPDB}\n")
+
+            # pH values
+            f.write(f"singlePH = {self.singlePH.get()}\n")
+            f.write(f"onePH = {self.onePH.get()}\n")
+            f.write(f"manyPH = {self.manyPH.get()}\n")
+
+            # Minimization
+            f.write(f"addMinimization = {str(self.addMinimization.get())}\n")
+            f.write(f"minimTol = {self.minimTol.get()}\n")
+            f.write(f"maxIter = {self.maxIter.get()}\n")
+
+            # Add hydrogens
+            f.write(f"addHydrogens = {solvParams.get('addH')}\n")
+            f.write(f"hPH = {solvParams.get('hPH')}\n")
+
+            # Barostat
+            f.write(f"addBarostat = {str(self.addBarostat.get())}\n")
+            if self.addBarostat.get():
+                f.write(f"pressure = {self.pressure.get()}\n")
+
+            # Integrator
+            f.write(f"integrator = {self.getEnumText('integrator')}\n")
+            f.write(f"stepSize = {self.stepSize.get()}\n")
+            f.write(f"fricCoef = {self.fricCoef.get()}\n")
+            f.write(f"temperature = {self.temperature.get()}\n")
+            f.write(f"colFreq = {self.colFreq.get()}\n")
+            f.write(f"errTol = {self.errTol.get()}\n")
+
+            #Output paths
+            sysName = self.getSystemName()
+            trajFile = self._getPath(f"{sysName}.dcd")
+            f.write(f"trajFile = {os.path.abspath(trajFile)}\n")
+            logFile = self._getPath("md_log.txt")
+            f.write(f"logFile = {os.path.abspath(logFile)}\n")
+            finalPdb = self._getPath(f"{sysName}.pdb")
+            f.write(f"finalPdb = {os.path.abspath(finalPdb)}\n")
+            finalCif = self._getPath(f"{sysName}.cif")
+            f.write(f"finalCif = {os.path.abspath(finalCif)}\n")
+            f.write(f'systemXml = {self.getSystemFile()}\n')
+
+            # Solvation box etc
+            if solvParams.get('boxSize'):
+                f.write(f"boxSize = {solvParams.get('boxSize')}\n")
+            else:
+                f.write(f"padding = {solvParams.get('padDist')}\n")
+
+            f.write(f"saltConc = {solvParams.get('saltConc')}\n")
+            f.write(f"neutralize = {solvParams.get('neutralize')}\n")
+            f.write(f"cationType = {solvParams.get('cationType')}\n")
+            f.write(f"anionType = {solvParams.get('anionType')}\n")
+
+        print(f"Parameters file created at: {paramsFile}")
+
+    def cphSimulateStep(self):
+        paramsFile = self.getParamsFile()
+        Plugin.runScript(self, 'openmmConstantpH.py', args=f'--params {paramsFile}', env=OPENMM_DIC,
+                         cwd=self._getPath())
 
     def simulateStep(self):
       sysFile, structFile = self.getSystemFile(), self.getStructureFile()
@@ -193,7 +368,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
     def createOutputStep(self):
       systemName = self.getSystemName()
       systemFile = os.path.relpath(self.getSystemFile())
-      outTopFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
+      outTopFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}_wrapped.dcd')
       outCifFile = self._getPath(f'{systemName}.cif')
 
       mFF, wFF = self.getFFFiles()
@@ -203,6 +378,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                                repFile=self._getPath('md_log.txt'),
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
       outSystem.setTrajectoryFile(outDcdFile)
+      print(outDcdFile)
 
       ligFile = self.inputSystem.get().getLigTopologyFile()
       if ligFile:
@@ -251,3 +427,49 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
     def getSystemName(self):
       return self.inputSystem.get().getSystemName()
+
+    def getImplicitFF(self):
+        mFF, _ = self.getFFFiles()
+        model = self.implicitModel.get()
+
+        implicitDict = {
+            'OBC1': 'implicit/obc1.xml',
+            'OBC2': 'implicit/obc2.xml',
+            'GBn': 'implicit/gbn.xml',
+            'GBn2': 'implicit/gbn2.xml'
+        }
+
+        wFF = implicitDict.get(model, 'implicit/gbn.xml')
+        return mFF, wFF
+
+    def readSolvParams(self, txtFile):
+        """
+        Reads a solvationParams.txt file and returns a dictionary
+        of parameter names and their values.
+        """
+        if not os.path.exists(txtFile):
+            raise FileNotFoundError(f"File not found: {txtFile}")
+
+        paramsDict = {}
+        with open(txtFile, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if '::' in line:
+                    key, value = line.split('::', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    if value.lower() in ['true', 'false']:
+                        value = value.lower() == 'true'
+                    else:
+                        try:
+                            if '.' in value:
+                                value = float(value)
+                            else:
+                                value = int(value)
+                        except ValueError:
+                            pass
+                    paramsDict[key] = value
+
+        return paramsDict

@@ -176,7 +176,7 @@ def runConstantPhSimulation(params):
         nonbondedMethod=nonBondedMethodExp,
         nonbondedCutoff=params['explicitCutoff'] * nanometers,
         constraints=params['constraintsExp'],
-        hydrogenMass=params['hydrogenMass'] * amu
+        hydrogenMass=1.5 * amu
     )
 
     implicitParams = dict(
@@ -372,7 +372,7 @@ def runConstantPhSimulation(params):
     reportEvery = params['reportEvery']
 
     cph.simulation.reporters.append(DCDReporter(trajFile, reportEvery))
-    totalSteps = params['equilSteps'] * params['stepEquil'] + params['prodSteps'] * params['stepProd']
+    totalSteps = params['nSteps']
     cph.simulation.reporters.append(
         StateDataReporter(
             logFile,
@@ -407,24 +407,29 @@ def runConstantPhSimulation(params):
         )
         print("[run] Minimization finished.")
 
+    nSteps = params['nSteps']
+    equilSteps = params.get('equilSteps', nSteps // 10)
+    prodSteps = nSteps - equilSteps
+    stepEquil = params.get('stepEquil', 1)
+    stepProd = params.get('stepProd', 1)
     # -----------------------------------
     # Equilibration
     # -----------------------------------
 
     print("\n--- Equilibration ---")
-    for idx in range(params['equilSteps']):
-        cph.simulation.step(params['stepEquil'])
+    for idx in range(equilSteps):
+        cph.simulation.step(stepEquil)
         cph.attemptMCStep(temperature)
-        if idx % max(1, params.get('equilSteps') // 10) == 0:
-            print(f"[equil] Completed equilibration cycle {idx+1}/{params['equilSteps']}")
+
+        if idx % max(1, equilSteps // 10) == 0:
+            print(f"[equil] Completed equilibration cycle {idx + 1}/{equilSteps}")
 
     # -----------------------------------
     # Production
     # -----------------------------------
-
     print("\n--- Production ---")
-    for prodIdx in range(params['prodSteps']):
-        cph.simulation.step(params['stepProd'])
+    for prodIdx in range(prodSteps):
+        cph.simulation.step(stepProd)
         cph.attemptMCStep(temperature)
 
         try:
@@ -437,9 +442,9 @@ def runConstantPhSimulation(params):
             print(f"[production] ERROR: {e}")
             raise
 
-        if prodIdx % max(1, params.get('prodSteps') // 10) == 0:
+        if prodIdx % max(1, prodSteps // 10) == 0:
             states = [simVariants[i][cph.titrations[i].currentIndex] for i in simVariants]
-            print(f"[production] step {prodIdx+1}/{params['prodSteps']} pH: {cph.pH[cph.currentPHIndex]} states: {states}")
+            print(f"[production] step {prodIdx + 1}/{prodSteps} pH: {cph.pH[cph.currentPHIndex]} states: {states}")
 
     print("[run] Production finished successfully.")
 
