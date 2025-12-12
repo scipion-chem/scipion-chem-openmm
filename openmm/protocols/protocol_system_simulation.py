@@ -72,7 +72,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                       help='http://docs.openmm.org/latest/userguide/theory/04_integrators.html')
 
         form.addParam('stepSize', params.FloatParam, default=0.004, label="Step size for integration (ps): ",
-                      condition='not integrator in [5, 6]',
+                      condition='not integrator in [5, 6] and not cph',
                       help='The step size with which to integrate the system (in picoseconds)')
         form.addParam('fricCoef', params.FloatParam, default=1, label="Friction coefficient (1/ps): ",
                       condition='integrator in [1, 2, 4, 6]',
@@ -368,7 +368,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
     def createOutputStep(self):
       systemName = self.getSystemName()
       systemFile = os.path.relpath(self.getSystemFile())
-      outTopFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}_wrapped.dcd')
+      outTopFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
       outCifFile = self._getPath(f'{systemName}.cif')
 
       mFF, wFF = self.getFFFiles()
@@ -378,7 +378,6 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                                repFile=self._getPath('md_log.txt'),
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
       outSystem.setTrajectoryFile(outDcdFile)
-      print(outDcdFile)
 
       ligFile = self.inputSystem.get().getLigTopologyFile()
       if ligFile:

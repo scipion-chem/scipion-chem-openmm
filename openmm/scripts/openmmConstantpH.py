@@ -371,7 +371,10 @@ def runConstantPhSimulation(params):
     finalPdb = params['finalPdb']
     reportEvery = params['reportEvery']
 
-    cph.simulation.reporters.append(DCDReporter(trajFile, reportEvery))
+    #cph.simulation.reporters.append(DCDReporter(trajFile, reportEvery))
+    cph.simulation.reporters.append(
+        DCDReporter(trajFile, reportEvery, enforcePeriodicBox=True)
+    )
     totalSteps = params['nSteps']
     cph.simulation.reporters.append(
         StateDataReporter(

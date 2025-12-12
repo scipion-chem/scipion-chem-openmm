@@ -145,41 +145,35 @@ class TestOpenMMInteractions(TestOpenMMSimulation):
         self._waitOutput(protInt, 'outputSmallMolecules', sleepTime=10)
         self.assertIsNotNone(getattr(protInt, 'outputSmallMolecules', None))
 
-class TestOpenMMcph(BaseTest):
-    @classmethod
-    def setUpClass(cls):
-        cls.ds = DataSet.getDataSet('model_building_tutorial')
+class TestOpenMMSimulationCPH(TestOpenMMPrepareSystem):
+  @classmethod
+  def _runSimulation(cls, protPrepareS):
+      protSim = cls.newProtocol(
+        ProtOpenMMSystemSimulation,
+        inputSystem=protPrepareS.outputSystem,
+        cph=True, singlePH=True, onePH=3.0, stepSize=0.002,
+        maxIter=100, nSteps=100, nTraj=10)
 
-        setupTestProject(cls)
-        cls._runImportPDB()
-        cls._waitOutput(cls.protImportPDB, 'outputPdb', sleepTime=5)
+      cls.launchProtocol(protSim)
+      return protSim
 
-    @classmethod
-    def _runImportPDB(cls):
-        protImportPDB = cls.newProtocol(
-            ProtImportPdb,
-            inputPdbData=0, pdbId='4erf')
-        cls.launchProtocol(protImportPDB)
-        cls.protImportPDB = protImportPDB
+  def test(self):
+      self._runPrepareReceptor()
+      self._waitOutput(self.protPrepareReceptor, 'outputStructure', sleepTime=10)
+      protPrepare = self._runPrepareSystem(self.protPrepareReceptor)
+      self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
 
-    @classmethod
-    def _runPrepareTarget(cls):
-        protInt = cls.newProtocol(
-            ProtChemPrepareReceptor, inputAtomStruct=cls.protImportPDB.outputPdb, usePDBFixer=True)
-        cls.launchProtocol(protInt)
-        cls.protInt = protInt
+      protSim = self._runSimulation(protPrepare)
+      self._waitOutput(protSim, 'outputSystem', sleepTime=10)
+      self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
 
-    @classmethod
-    def _runCphSim(cls):
-        system = cls.newProtocol(
-            ProtOpenMMSystemSimulationConstantPH, inputStructure=cls.protInt.outputStructure, prodSteps=500)
-        cls.launchProtocol(system)
-        return system
+  def test2(self):
+      protExtract = self._runExtractLigand(self.protImportPDB)
+      self._waitOutput(protExtract, 'outputSmallMolecules')
 
-    def test(self):
-        self._runPrepareTarget()
-        self._waitOutput(self.protInt, 'outputStructure')
+      protPrepare = self._runPrepareSystem(protExtract, inputFrom=LIGAND)
+      self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
 
-        system = self._runCphSim()
-        self._waitOutput(system, 'outputSystem')
-        self.assertIsNotNone(getattr(system, 'outputSystem', None))
+      protSim = self._runSimulation(protPrepare)
+      self._waitOutput(protSim, 'outputSystem', sleepTime=10)
+      self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
