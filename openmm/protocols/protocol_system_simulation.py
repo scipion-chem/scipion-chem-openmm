@@ -72,7 +72,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                       help='http://docs.openmm.org/latest/userguide/theory/04_integrators.html')
 
         form.addParam('stepSize', params.FloatParam, default=0.004, label="Step size for integration (ps): ",
-                      condition='not integrator in [5, 6] and not cph',
+                      condition='not integrator in [5, 6]',
                       help='The step size with which to integrate the system (in picoseconds)')
         form.addParam('fricCoef', params.FloatParam, default=1, label="Friction coefficient (1/ps): ",
                       condition='integrator in [1, 2, 4, 6]',
