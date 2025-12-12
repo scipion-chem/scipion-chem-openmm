@@ -192,8 +192,6 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         paramsFile = self.getParamsFile()
 
         recFile = self.getStructureFile() #cif file
-        #pdbFile = self._getExtraPath(f'{self.getSystemName()}.pdb')
-        #cifToPdb(os.path.abspath(recFile), (pdbFile))
         molFile = self.inputSystem.get().getLigTopologyFile()
 
         txtFilePath = os.path.join(os.path.dirname(recFile), 'extra')
