@@ -82,8 +82,7 @@ class Plugin(pwchem.Plugin):
         installer.getCloneCommand(cls.getOpenDuckGithub(), targeName='ODUCK_CLONED'). \
             addCommand(f'{cls.getEnvActivationCommand(OPENMM_DIC)} && cd openduck && python setup.py install',
                        'ODUCK_INSTALLED'). \
-            addCommand(f'{cls.getEnvActivationCommand(OPENMM_DIC)} && '
-                       f'python {cls.getScriptsDir("_updateOpenMMImports.py")} {cls.getEnvPath(OPENMM_DIC)}',
+            addCommand(f'python {cls.getScriptsDir("_updateOpenMMImports.py")} {cls.getEnvPath(OPENMM_DIC)}',
                        'ODUCK_OPENMM_UPDATED'). \
             addPackage(env, dependencies=['conda'], default=default)
 
