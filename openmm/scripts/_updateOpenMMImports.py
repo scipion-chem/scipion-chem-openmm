@@ -35,5 +35,6 @@ if __name__ == "__main__":
   repComds = []
   for suffixPath, reps in REPLACE_DIC.items():
     scriptPath = findFullPath(rootDir, suffixPath)
-    replaceInFile(scriptPath, reps[0], reps[1])
+    if scriptPath:
+      replaceInFile(scriptPath, reps[0], reps[1])
     
