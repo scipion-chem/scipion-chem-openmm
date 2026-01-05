@@ -49,8 +49,7 @@ STRUCTURE, LIGAND = 0, 1
 GAFF_Vs = ['gaff-1.4', 'gaff-1.8', 'gaff-1.81', 'gaff-2.1', 'gaff-2.11']
 SMIRNOFF_Vs = ['openff-1.0.1', 'openff-1.1.1', 'openff-1.0.0-RC1', 'openff-1.2.0', 'openff-1.1.0', 'openff-1.0.0', 'openff-1.0.0-RC2', 'smirnoff99Frosst-1.0.2', 'smirnoff99Frosst-1.0.0', 'smirnoff99Frosst-1.1.0', 'smirnoff99Frosst-1.0.4', 'smirnoff99Frosst-1.0.8', 'smirnoff99Frosst-1.0.6', 'smirnoff99Frosst-1.0.3', 'smirnoff99Frosst-1.0.1', 'smirnoff99Frosst-1.0.5', 'smirnoff99Frosst-1.0.9', 'smirnoff99Frosst-1.0.7']
 SMIRNOFF_Vs.sort()
-#ESPALOMA_Vs = ['espaloma-0.4.0', 'espaloma-0.3.2']
-ESPALOMA_Vs = ['espaloma-0.3.2']
+ESPALOMA_Vs = ['espaloma-0.4.0', 'espaloma-0.3.2']
 
 
 CATION_NAMES = ['Cs+', 'K+', 'Li+', 'Na+', 'Rb+']
