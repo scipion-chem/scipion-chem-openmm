@@ -46,10 +46,10 @@ def parsePhValues(singlePH, onePH, manyPH):
 
 
 def parseValue(v):
-    v_lower = v.lower()
+    valueLower = v.lower()
 
-    if v_lower in ("true", "false"):
-        return v_lower == "true"
+    if valueLower in ("true", "false"):
+        return valueLower == "true"
 
     try:
         return float(v) if "." in v else int(v)
