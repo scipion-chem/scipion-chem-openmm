@@ -437,6 +437,19 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         wFF = implicitDict.get(model, 'implicit/gbn.xml')
         return mFF, wFF
 
+    def parseValue(self, value):
+        value_lower = value.lower()
+
+        if value_lower == "true":
+            return True
+        if value_lower == "false":
+            return False
+
+        try:
+            return float(value) if "." in value else int(value)
+        except ValueError:
+            return value
+
     def readSolvParams(self, txtFile):
         """
         Reads a solvationParams.txt file and returns a dictionary
@@ -446,25 +459,16 @@ class ProtOpenMMSystemSimulation(EMProtocol):
             raise FileNotFoundError(f"File not found: {txtFile}")
 
         paramsDict = {}
-        with open(txtFile, 'r') as f:
+
+        with open(txtFile, "r") as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith('#'):
+
+                if not line or line.startswith("#") or "::" not in line:
                     continue
-                if '::' in line:
-                    key, value = line.split('::', 1)
-                    key = key.strip()
-                    value = value.strip()
-                    if value.lower() in ['true', 'false']:
-                        value = value.lower() == 'true'
-                    else:
-                        try:
-                            if '.' in value:
-                                value = float(value)
-                            else:
-                                value = int(value)
-                        except ValueError:
-                            pass
-                    paramsDict[key] = value
+
+                key, value = (part.strip() for part in line.split("::", 1))
+                paramsDict[key] = self.parseValue(value)
 
         return paramsDict
+
