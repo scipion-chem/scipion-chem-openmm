@@ -45,22 +45,31 @@ def parsePhValues(singlePH, onePH, manyPH):
     return values
 
 
+def parseValue(v):
+    v_lower = v.lower()
+
+    if v_lower in ("true", "false"):
+        return v_lower == "true"
+
+    try:
+        return float(v) if "." in v else int(v)
+    except ValueError:
+        return [x.strip() for x in v.split(",")] if "," in v else v
+
+
 def parseTxtConfig(filename):
     params = {}
+
     with open(filename) as f:
         for line in f:
             line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            k, v = [x.strip() for x in line.split('=', 1)]
 
-            if v.lower() in ['true', 'false']:
-                params[k] = v.lower() == 'true'
-            else:
-                try:
-                    params[k] = float(v) if '.' in v else int(v)
-                except ValueError:
-                    params[k] = [x.strip() for x in v.split(',')] if ',' in v else v
+            if not line or line.startswith("#"):
+                continue
+
+            k, v = (x.strip() for x in line.split("=", 1))
+            params[k] = parseValue(v)
+
     return params
 
 # ---------------------------

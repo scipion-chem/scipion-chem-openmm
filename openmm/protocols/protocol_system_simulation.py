@@ -438,11 +438,11 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         return mFF, wFF
 
     def parseValue(self, value):
-        value_lower = value.lower()
+        valueLower = value.lower()
 
-        if value_lower == "true":
+        if valueLower == "true":
             return True
-        if value_lower == "false":
+        if valueLower == "false":
             return False
 
         try:
