@@ -39,17 +39,6 @@ def main(paramsPath):
     # load pdb
     topo = md.load_pdb(pdbIn)
 
-    # build selection string
-    if keepIons:
-        sel = "not water"
-    else:
-        # remove water and ions (ions identified as elements or common resnames)
-        # keep only protein, nucleic acids, ligands, cofactors
-        sel = "not water and not (resname NA CL K MG CA)".lower()
-        # mdtraj expects lower-case selections, but 'resname' is matched case-insensitively in mdtraj
-        # fallback: select by "not solvent" if mdtraj supports:
-        # sel = "not water and not solvent"  # but "solvent" is not always supported
-
     # do selection on PDB topology
     notWater = topo.topology.select("not water") if keepIons else topo.topology.select("not water and not element Na and not element Cl and not element K and not element Mg and not element Ca")
 

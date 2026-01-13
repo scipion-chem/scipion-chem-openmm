@@ -28,6 +28,7 @@
 Protocol to strip water from an OpenMMSystem produced by ProtOpenMMSystemSimulation.
 """
 import os
+import shutil
 from pyworkflow.protocol import params
 from pyworkflow.utils import Message
 import subprocess
@@ -58,13 +59,12 @@ class ProtStripWater(EMProtocol):
         pdbFile = self.inputSystem.get().getFileName()
         name = os.path.splitext(os.path.basename(pdbFile))[0]
         systemPath = os.path.dirname(pdbFile)
-        pdbIn = pdbFile
         dcdIn = os.path.join(systemPath, f"{name}.dcd")
 
         paramsFile = self._getExtraPath('strip_params.txt')
         outPrefix = self._getPath(f'{name}_clean')
         with open(paramsFile, 'w') as f:
-            f.write(f'pdbIn :: {os.path.abspath(pdbIn)}\n')
+            f.write(f'pdbIn :: {os.path.abspath(pdbFile)}\n')
             f.write(f'dcdIn :: {os.path.abspath(dcdIn)}\n')
             f.write(f'outPrefix :: {os.path.abspath(outPrefix)}\n')
             f.write(f'keepIons :: {self.keepIons.get()}\n')
@@ -90,6 +90,15 @@ class ProtStripWater(EMProtocol):
 
         if os.path.exists(outDcd):
             outSystem.setTrajectoryFile(outDcd)
+
+        inSystem = self.inputSystem.get()
+        inAnaDir = inSystem.getOpenmmdlDir() if hasattr(inSystem, 'getOpenmmdlDir') else None
+
+        if inAnaDir and os.path.exists(inAnaDir):
+            outAnaDir = self._getExtraPath('OpenMMDL')
+            if not os.path.exists(outAnaDir):
+                shutil.copytree(inAnaDir, outAnaDir)
+            outSystem.setOpenmmdlDir(outAnaDir)
 
         self._defineOutputs(outputSystem=outSystem)
 
