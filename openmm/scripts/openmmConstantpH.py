@@ -254,10 +254,10 @@ def runConstantPhSimulation(params):
 
         if res != 'HIS':
             # Standard 2-state residues
-            state_variants, pKa = info['states'][0]
+            stateVariants, pKa = info['states'][0]
             ref = computeRef(
                 params[info['model']],
-                {1: state_variants},
+                {1: stateVariants},
                 pKa,
                 params,
                 explicitFF, implicitFF,
@@ -265,17 +265,17 @@ def runConstantPhSimulation(params):
                 integrator, relaxationIntegrator
             )[1]
 
-            variantsDict[res] = state_variants
+            variantsDict[res] = stateVariants
             refenergies[res] = ref
         else:
             # HIS: 3 states
-            hid_variants, hid_pKa = info['states'][0]
-            hie_variants, hie_pKa = info['states'][1]
+            hidVariants, hidPka = info['states'][0]
+            hieVariants, hiePka = info['states'][1]
 
             hid = computeRef(
                 params[info['model']],
-                {1: hid_variants},
-                hid_pKa,
+                {1: hidVariants},
+                hidPka,
                 params,
                 explicitFF, implicitFF,
                 explicitParams, implicitParams,
@@ -284,8 +284,8 @@ def runConstantPhSimulation(params):
 
             hie = computeRef(
                 params[info['model']],
-                {1: hie_variants},
-                hie_pKa,
+                {1: hieVariants},
+                hiePka,
                 params,
                 explicitFF, implicitFF,
                 explicitParams, implicitParams,
