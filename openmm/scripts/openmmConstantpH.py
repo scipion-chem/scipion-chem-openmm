@@ -83,21 +83,23 @@ def createIntegrator(params, temperature):
     integratorName = params.get('integrator', 'Langevin')
 
     if integratorName == 'Verlet':
-        return VerletIntegrator(stepSize)
+        integrator = VerletIntegrator(stepSize)
     elif integratorName == 'Langevin':
-        return LangevinIntegrator(temperature, fric, stepSize)
+        integrator = LangevinIntegrator(temperature, fric, stepSize)
     elif integratorName == 'LangevinMiddle':
-        return LangevinMiddleIntegrator(temperature, fric, stepSize)
+        integrator = LangevinMiddleIntegrator(temperature, fric, stepSize)
     elif integratorName == 'NoseHoover':
-        return NoseHooverIntegrator(temperature, 1.0 / picosecond, stepSize)
+        integrator = NoseHooverIntegrator(temperature, 1.0 / picosecond, stepSize)
     elif integratorName == 'Brownian':
-        return BrownianIntegrator(temperature, stepSize)
+        integrator = BrownianIntegrator(temperature, stepSize)
     elif integratorName == 'VariableVerlet':
-        return VariableVerletIntegrator(stepSize, errTol)
+        integrator = VariableVerletIntegrator(stepSize, errTol)
     elif integratorName == 'VariableLangevin':
-        return VariableLangevinIntegrator(temperature, fric, stepSize, errTol)
+        integrator = VariableLangevinIntegrator(temperature, fric, stepSize, errTol)
     else:
         raise ValueError(f"Unknown integrator: {integratorName}")
+
+    return integrator
 
 
 def computeRef(modelFile, variantsDict, targetPKa, params,
@@ -233,91 +235,66 @@ def runConstantPhSimulation(params):
     wModel = os.path.splitext(os.path.basename(waterModel))[0]
     modeller.addSolvent(explicitFF, model=wModel, **kwargs)
 
-    # ASP
-    if 'ASP' in params['residuesToTitrate']:
-        print("[run] Computing ASP reference energy...")
-        refenergies['ASP'] = computeRef(
-            params['aspModel'],
-            {1: ['ASP', 'ASH']},
-            3.9,
-            params,
-            explicitFF, implicitFF,
-            explicitParams, implicitParams,
-            integrator, relaxationIntegrator
-        )[1]
-        variantsDict['ASP'] = ['ASP', 'ASH']
+    resInfo = {
+        'ASP': {'model': 'aspModel', 'states': [(['ASP', 'ASH'], 3.9)]},
+        'GLU': {'model': 'gluModel', 'states': [(['GLU', 'GLH'], 4.2)]},
+        'CYS': {'model': 'cysModel', 'states': [(['CYS', 'CYX'], 7.1)]},
+        'LYS': {'model': 'lysModel', 'states': [(['LYS', 'LYN'], 10.5)]},
+        'HIS': {'model': 'hisModel', 'states': [(['HIP', 'HID'], 7.1), (['HIP', 'HIE'], 6.5)]},
+    }
 
-    # GLU
-    if 'GLU' in params['residuesToTitrate']:
-        print("[run] Computing GLU reference energy...")
-        refenergies['GLU'] = computeRef(
-            params['gluModel'],
-            {1: ['GLU', 'GLH']},
-            4.2,
-            params,
-            explicitFF, implicitFF,
-            explicitParams, implicitParams,
-            integrator, relaxationIntegrator
-        )[1]
-        variantsDict['GLU'] = ['GLU', 'GLH']
+    for res, info in resInfo.items():
+        if res not in params['residuesToTitrate']:
+            continue
 
-    # CYS
-    if 'CYS' in params['residuesToTitrate']:
-        print("[run] Computing CYS reference energy...")
-        refenergies['CYS'] = computeRef(
-            params['cysModel'],
-            {1: ['CYS', 'CYX']},
-            7.1,
-            params,
-            explicitFF, implicitFF,
-            explicitParams, implicitParams,
-            integrator, relaxationIntegrator
-        )[1]
-        variantsDict['CYS'] = ['CYS', 'CYX']
+        print(f"[run] Computing {res} reference energy{'s' if len(info['states']) > 1 else ''}...")
 
-    # HIS (3 states)
-    if 'HIS' in params['residuesToTitrate']:
-        print("[run] Computing HIS reference energies (HID/HIE)...")
-        hid = computeRef(
-            params['hisModel'],
-            {1: ['HIP', 'HID']},
-            7.1,
-            params,
-            explicitFF, implicitFF,
-            explicitParams, implicitParams,
-            integrator, relaxationIntegrator
-        )[1]
+        variantsDict[res] = []
+        refenergies[res] = []
 
-        hie = computeRef(
-            params['hisModel'],
-            {1: ['HIP', 'HIE']},
-            6.5,
-            params,
-            explicitFF, implicitFF,
-            explicitParams, implicitParams,
-            integrator, relaxationIntegrator
-        )[1]
+        if res != 'HIS':
+            # Standard 2-state residues
+            state_variants, pKa = info['states'][0]
+            ref = computeRef(
+                params[info['model']],
+                {1: state_variants},
+                pKa,
+                params,
+                explicitFF, implicitFF,
+                explicitParams, implicitParams,
+                integrator, relaxationIntegrator
+            )[1]
 
-        refenergies['HIS'] = [
-            0.0 * kilojoules_per_mole,
-            hid[1],
-            hie[1]
-        ]
-        variantsDict['HIS'] = ['HIP', 'HID', 'HIE']
+            variantsDict[res] = state_variants
+            refenergies[res] = ref
+        else:
+            # HIS: 3 states
+            hid_variants, hid_pKa = info['states'][0]
+            hie_variants, hie_pKa = info['states'][1]
 
-    # LYS
-    if 'LYS' in params['residuesToTitrate']:
-        print("[run] Computing LYS reference energy...")
-        refenergies['LYS'] = computeRef(
-            params['lysModel'],
-            {1: ['LYS', 'LYN']},
-            10.5,
-            params,
-            explicitFF, implicitFF,
-            explicitParams, implicitParams,
-            integrator, relaxationIntegrator
-        )[1]
-        variantsDict['LYS'] = ['LYS', 'LYN']
+            hid = computeRef(
+                params[info['model']],
+                {1: hid_variants},
+                hid_pKa,
+                params,
+                explicitFF, implicitFF,
+                explicitParams, implicitParams,
+                integrator, relaxationIntegrator
+            )[1]
+
+            hie = computeRef(
+                params[info['model']],
+                {1: hie_variants},
+                hie_pKa,
+                params,
+                explicitFF, implicitFF,
+                explicitParams, implicitParams,
+                integrator, relaxationIntegrator
+            )[1]
+
+            # OpenMM expects referenceEnergies length == number of variants (3 for HIS)
+            refenergies['HIS'] = [0.0 * kilojoules_per_mole, hid[1], hie[1]]
+            variantsDict['HIS'] = ['HIP', 'HID', 'HIE']
 
     # -----------------------------------
     # Assign residues
