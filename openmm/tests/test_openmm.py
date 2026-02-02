@@ -31,6 +31,16 @@ from ..protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation, ProtOp
 
 STRUCTURE, LIGAND = 0, 1
 
+import unittest
+
+def has_cuda():
+    try:
+        from openmm import Platform
+        Platform.getPlatformByName('CUDA')
+        return True
+    except Exception:
+        return False
+
 class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
     @classmethod
     def _runImportPDB(cls):
@@ -72,7 +82,7 @@ class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
         self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
         self.assertIsNotNone(getattr(protPrepare, 'outputSystem', None))
 
-
+@unittest.skipUnless(has_cuda(), "CUDA platform not available")
 class TestOpenMMSimulation(TestOpenMMPrepareSystem):
   @classmethod
   def _runSimulation(cls, protPrepareS):
@@ -105,6 +115,7 @@ class TestOpenMMSimulation(TestOpenMMPrepareSystem):
       self._waitOutput(protSim, 'outputSystem', sleepTime=10)
       self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
 
+@unittest.skipUnless(has_cuda(), "CUDA platform not available")
 class TestOpenMMInteractions(TestOpenMMSimulation):
     @classmethod
     def _runInteractions(cls, protIn, inputFrom=STRUCTURE):
@@ -146,7 +157,7 @@ class TestOpenMMInteractions(TestOpenMMSimulation):
 
 class TestOpenMMStripWaters(TestOpenMMSimulation):
     @classmethod
-    def _runStripWaters(cls, protIn, inputFrom=STRUCTURE):
+    def _runStripWaters(cls, protIn):
         protInt = cls.newProtocol(
           ProtStripWater, inputSystem=protIn.outputSystem, keepIons=True)
 
