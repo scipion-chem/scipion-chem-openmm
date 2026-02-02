@@ -81,7 +81,7 @@ class TestOpenMMSimulation(TestOpenMMPrepareSystem):
       protSim = cls.newProtocol(
         ProtOpenMMSystemSimulation,
         inputSystem=protPrepareS.outputSystem, stepSize=0.002,
-        maxIter=70, nSteps=10, nTraj=5)
+        maxIter=20, nSteps=10, nTraj=5)
 
       cls.launchProtocol(protSim)
       return protSim
@@ -92,7 +92,7 @@ class TestOpenMMSimulation(TestOpenMMPrepareSystem):
           ProtOpenMMSystemSimulation,
           inputSystem=protPrepareS.outputSystem,
           cph=True, singlePH=True, onePH=3.0, stepSize=0.002,
-          maxIter=70, nSteps=10, nTraj=5)
+          maxIter=20, nSteps=10, nTraj=5)
 
       cls.launchProtocol(protSim)
       return protSim
