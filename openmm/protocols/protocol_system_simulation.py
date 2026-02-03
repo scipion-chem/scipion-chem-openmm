@@ -358,7 +358,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                                  os.path.abspath(self._getPath(f'{systemName}.dcd'))
 
         args = f'-t {outTopFile} -d {outDcdFile} -n LIG -c {self.numberOfThreads.get()}'
-        pwchemPlugin.runCondaCommand(self, args, OPENMM_DIC, 'openmmdl_analysis', cwd=oDir)
+        pwchemPlugin.runCondaCommand(self, args, OPENMM_DIC, 'openmmdl analysis', cwd=oDir)
 
 
     def createOutputStep(self):
