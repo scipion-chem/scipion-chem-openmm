@@ -64,8 +64,10 @@ class Plugin(pwchem.Plugin):
         ).addCommand(
             f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
             'ESPALOMA_MODEL_DOWNLOADED'
-        ).addCondaPackages(
-            ['openmmdl'], channel='conda-forge'
+        ).addCommand(
+            f'{cls.getEnvActivationCommand(OPENMM_DIC)} && '
+            f'pip install --upgrade git+https://github.com/MolecularDesignLab/OpenMMDL.git',
+            'OPENMMDL_INSTALLED_FROM_GITHUB'
         ).addCommand(
             f"cd {cls.getVar(OPENMM_DIC['home'])} && git clone https://github.com/openmm/openmm-cph.git",
             'CPH_REPO_CLONED'
