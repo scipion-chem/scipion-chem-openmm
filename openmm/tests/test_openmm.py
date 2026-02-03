@@ -32,12 +32,6 @@ from ..protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation, ProtOp
 STRUCTURE, LIGAND = 0, 1
 
 
-skip_cuda = False
-try:
-    Platform.getPlatformByName('CUDA')
-except Exception:
-    skip_cuda = True
-
 class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
     @classmethod
     def _runImportPDB(cls):
@@ -79,7 +73,6 @@ class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
         self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
         self.assertIsNotNone(getattr(protPrepare, 'outputSystem', None))
 
-@pytest.mark.skipif(skip_cuda, reason="CUDA platform not available")
 class TestOpenMMSimulation(TestOpenMMPrepareSystem):
   @classmethod
   def _runSimulation(cls, protPrepareS):
