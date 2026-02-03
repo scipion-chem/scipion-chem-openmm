@@ -29,6 +29,8 @@ Protocol to strip water from an OpenMMSystem produced by ProtOpenMMSystemSimulat
 """
 import os
 import shutil
+
+from pwem.convert.atom_struct import pdbToCif
 from pyworkflow.protocol import params
 from pyworkflow.utils import Message
 import subprocess
@@ -79,7 +81,7 @@ class ProtStripWater(EMProtocol):
         outDcd = self._getPath(f'{name}{suffix}.dcd')
 
         outCif = self._getPath(f'{name}{suffix}.cif')
-        subprocess.run(["obabel", "-ipdb", outPdb, "-ocif", "-O", outCif], check=True)
+        pdbToCif(outPdb, outCif)
 
         mFF, wFF = self.getFFFiles()
         nFrames = self.inputSystem.get().getNFrames()
