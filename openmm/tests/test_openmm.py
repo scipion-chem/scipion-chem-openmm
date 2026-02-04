@@ -120,6 +120,16 @@ class TestOpenMMSimulation(TestOpenMMPrepareSystem):
 
 class TestOpenMMcph(TestOpenMMPrepareSystem):
   @classmethod
+  def _runSimulation(cls, protPrepareS):
+      protSim = cls.newProtocol(
+        ProtOpenMMSystemSimulation,
+        inputSystem=protPrepareS.outputSystem, stepSize=0.002,
+        maxIter=20, nSteps=10, nTraj=5)
+
+      cls.launchProtocol(protSim)
+      return protSim
+
+  @classmethod
   def _runSimulationCPH(cls, protPrepareS):
       protSim = cls.newProtocol(
           ProtOpenMMSystemSimulation,
@@ -130,7 +140,7 @@ class TestOpenMMcph(TestOpenMMPrepareSystem):
       cls.launchProtocol(protSim)
       return protSim
 
-  def test_cph(self):
+  def test(self):
       self._runPrepareReceptor()
       self._waitOutput(self.protPrepareReceptor, 'outputStructure', sleepTime=10)
       protPrepare = self._runPrepareSystem(self.protPrepareReceptor)
@@ -140,7 +150,7 @@ class TestOpenMMcph(TestOpenMMPrepareSystem):
       self._waitOutput(protSim, 'outputSystem', sleepTime=10)
       self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
 
-  def test2_cph(self):
+  def test2(self):
       protExtract = self._runExtractLigand(self.protImportPDB)
       self._waitOutput(protExtract, 'outputSmallMolecules')
 
