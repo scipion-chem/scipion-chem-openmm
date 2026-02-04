@@ -27,9 +27,10 @@
 from pwem.protocols import ProtImportPdb
 from pwchem.tests import TestPrepareReceptor, TestExtractLigand
 
-from ..protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation, ProtOpenMMInteractionEnergy
+from ..protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation, ProtOpenMMInteractionEnergy, ProtStripWater
 
 STRUCTURE, LIGAND = 0, 1
+
 
 class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
     @classmethod
@@ -72,14 +73,13 @@ class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
         self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
         self.assertIsNotNone(getattr(protPrepare, 'outputSystem', None))
 
-
 class TestOpenMMSimulation(TestOpenMMPrepareSystem):
   @classmethod
   def _runSimulation(cls, protPrepareS):
       protSim = cls.newProtocol(
         ProtOpenMMSystemSimulation,
-        inputSystem=protPrepareS.outputSystem,
-        maxIter=100, nSteps=100, nTraj=10)
+        inputSystem=protPrepareS.outputSystem, stepSize=0.002,
+        maxIter=20, nSteps=10, nTraj=5)
 
       cls.launchProtocol(protSim)
       return protSim
@@ -142,4 +142,29 @@ class TestOpenMMInteractions(TestOpenMMSimulation):
         protInt = self._runInteractions(protExtract, inputFrom=LIGAND)
         self._waitOutput(protInt, 'outputSmallMolecules', sleepTime=10)
         self.assertIsNotNone(getattr(protInt, 'outputSmallMolecules', None))
+
+
+class TestOpenMMStripWaters(TestOpenMMSimulation):
+    @classmethod
+    def _runStripWaters(cls, protIn):
+        protInt = cls.newProtocol(
+          ProtStripWater, inputSystem=protIn.outputSystem, keepIons=True)
+
+        cls.launchProtocol(protInt)
+        return protInt
+
+    def test(self):
+        protExtract = self._runExtractLigand(self.protImportPDB)
+        self._waitOutput(protExtract, 'outputSmallMolecules')
+
+        protPrepare = self._runPrepareSystem(protExtract, inputFrom=LIGAND)
+        self._waitOutput(protPrepare, 'outputSystem', sleepTime=10)
+
+        protSim = self._runSimulation(protPrepare)
+        self._waitOutput(protSim, 'outputSystem', sleepTime=10)
+
+        protInt = self._runStripWaters(protSim)
+        self._waitOutput(protInt, 'outputSystem', sleepTime=10)
+        self.assertIsNotNone(getattr(protInt, 'outputSystem', None))
+
 
