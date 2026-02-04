@@ -8,3 +8,5 @@ from .protocol_system_prep import ProtOpenMMSystemPrep
 from .protocol_system_simulation import ProtOpenMMSystemSimulation
 from .protocol_openduck_simulation import ProtOpenDuckSimulation
 from .protocol_interaction_energy import ProtOpenMMInteractionEnergy
+from .protocol_system_modification import ProtStripWater
+

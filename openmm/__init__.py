@@ -87,12 +87,6 @@ class Plugin(pwchem.Plugin):
             addPackage(env, dependencies=['conda'], default=default)
 
     # ---------------------------------- Utils functions  -----------------------
-    #@classmethod
-    #def getEnvActivationCommand(cls, packageDictionary, condaHook=True):
-    #    """ This function returns the conda enviroment activation command for a given package. """
-    #    return '{}conda activate {}'.format(cls.getCondaActivationCmd() if condaHook else '',
-    #                                        cls.getEnvName(packageDictionary))
-
     @classmethod
     def getPluginHome(cls, path=""):
         import openmm
@@ -117,3 +111,4 @@ class Plugin(pwchem.Plugin):
     @classmethod
     def getOpenDuckGithub(cls):
         return "https://github.com/CBDD/openduck.git"
+
