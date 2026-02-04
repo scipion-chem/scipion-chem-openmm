@@ -86,17 +86,6 @@ class TestOpenMMSimulation(TestOpenMMPrepareSystem):
       cls.launchProtocol(protSim)
       return protSim
 
-  @classmethod
-  def _runSimulationCPH(cls, protPrepareS):
-      protSim = cls.newProtocol(
-          ProtOpenMMSystemSimulation,
-          inputSystem=protPrepareS.outputSystem,
-          cph=True, singlePH=True, onePH=3.0, stepSize=0.002,
-          maxIter=20, nSteps=10, nTraj=5)
-
-      cls.launchProtocol(protSim)
-      return protSim
-
   def test(self):
       self._runPrepareReceptor()
       self._waitOutput(self.protPrepareReceptor, 'outputStructure', sleepTime=10)
@@ -119,16 +108,6 @@ class TestOpenMMSimulation(TestOpenMMPrepareSystem):
       self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
 
 class TestOpenMMcph(TestOpenMMPrepareSystem):
-  @classmethod
-  def _runSimulation(cls, protPrepareS):
-      protSim = cls.newProtocol(
-        ProtOpenMMSystemSimulation,
-        inputSystem=protPrepareS.outputSystem, stepSize=0.002,
-        maxIter=20, nSteps=10, nTraj=5)
-
-      cls.launchProtocol(protSim)
-      return protSim
-
   @classmethod
   def _runSimulationCPH(cls, protPrepareS):
       protSim = cls.newProtocol(
