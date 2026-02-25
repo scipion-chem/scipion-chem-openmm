@@ -32,6 +32,7 @@ from pwchem.tests import TestPrepareReceptor, TestExtractLigand
 from ..protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation, ProtOpenMMInteractionEnergy, ProtStripWater
 
 STRUCTURE, LIGAND = 0, 1
+chainStr = '{"model": 0, "chain": "C", "residues": 141}'
 
 class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
     @classmethod
@@ -67,7 +68,7 @@ class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
         self.assertIsNotNone(getattr(protPrepare, 'outputSystem', None))
 
     def test2(self):
-        protExtract = self._runExtractLigand(self.protImportPDB)
+        protExtract = self._runExtractLigand(self.protImportPDB, chainStr)
         self._waitOutput(protExtract, 'outputSmallMolecules')
 
         protPrepare = self._runPrepareSystem(protExtract, inputFrom=LIGAND)
@@ -97,7 +98,7 @@ class TestOpenMMSimulation(TestOpenMMPrepareSystem):
       self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
 
   def test2(self):
-      protExtract = self._runExtractLigand(self.protImportPDB)
+      protExtract = self._runExtractLigand(self.protImportPDB, chainStr)
       self._waitOutput(protExtract, 'outputSmallMolecules')
 
       protPrepare = self._runPrepareSystem(protExtract, inputFrom=LIGAND)
@@ -130,7 +131,7 @@ class TestOpenMMcph(TestOpenMMPrepareSystem):
       self.assertIsNotNone(getattr(protSim, 'outputSystem', None))
 
   def test2(self):
-      protExtract = self._runExtractLigand(self.protImportPDB)
+      protExtract = self._runExtractLigand(self.protImportPDB, chainStr)
       self._waitOutput(protExtract, 'outputSmallMolecules')
 
       protPrepare = self._runPrepareSystem(protExtract, inputFrom=LIGAND)
@@ -157,7 +158,7 @@ class TestOpenMMInteractions(TestOpenMMSimulation):
         return protInt
 
     def test(self):
-        protExtract = self._runExtractLigand(self.protImportPDB)
+        protExtract = self._runExtractLigand(self.protImportPDB, chainStr)
         self._waitOutput(protExtract, 'outputSmallMolecules')
 
         protPrepare = self._runPrepareSystem(protExtract, inputFrom=LIGAND)
@@ -171,7 +172,7 @@ class TestOpenMMInteractions(TestOpenMMSimulation):
         self.assertIsNotNone(getattr(protInt, 'outputSystem', None))
 
     def test2(self):
-        protExtract = self._runExtractLigand(self.protImportPDB)
+        protExtract = self._runExtractLigand(self.protImportPDB, chainStr)
         self._waitOutput(protExtract, 'outputSmallMolecules')
 
         protInt = self._runInteractions(protExtract, inputFrom=LIGAND)
@@ -189,7 +190,7 @@ class TestOpenMMStripWaters(TestOpenMMSimulation):
         return protInt
 
     def test(self):
-        protExtract = self._runExtractLigand(self.protImportPDB)
+        protExtract = self._runExtractLigand(self.protImportPDB, chainStr)
         self._waitOutput(protExtract, 'outputSmallMolecules')
 
         protPrepare = self._runPrepareSystem(protExtract, inputFrom=LIGAND)
