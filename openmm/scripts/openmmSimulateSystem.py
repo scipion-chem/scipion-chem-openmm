@@ -30,67 +30,74 @@ import sys
 
 # Openmm imports
 from openmm.app import PDBFile, ForceField, Simulation, StateDataReporter,\
-	DCDReporter, NoCutoff, HBonds, PDBxFile
+    DCDReporter, NoCutoff, HBonds, PDBxFile
 from openmm import *
 from openmm.unit import *
 
 from utils import parseParams
 
 if __name__ == "__main__":
-	pDic = parseParams(sys.argv[1], sep='::')
-	sysFile, recFile = pDic['systemFile'], pDic['structureFile']
-	
-	parser = PDBFile if recFile.endswith('.pdb') else PDBxFile
-	pdb = parser(recFile)
-	with open(sysFile) as input:
-		system = XmlSerializer.deserialize(input.read())
+    pDic = parseParams(sys.argv[1], sep='::')
+    sysFile, recFile = pDic['systemFile'], pDic['structureFile']
 
-	sysName = os.path.splitext(os.path.basename(sysFile))[0]
-	nTraj = int(pDic['nTraj'])
+    parser = PDBFile if recFile.endswith('.pdb') else PDBxFile
+    pdb = parser(recFile)
+    with open(sysFile) as input:
+        system = XmlSerializer.deserialize(input.read())
 
-	if eval(pDic['addBarostat']):
-		system.addForce(MonteCarloBarostat(float(pDic['pressure']) * bar, float(pDic['temperature']) * kelvin))
+    sysName = os.path.splitext(os.path.basename(sysFile))[0]
+    nTraj = int(pDic['nTraj'])
 
-	intArgs = []
-	intClass = eval('{}Integrator'.format(pDic['integrator']))
-	if pDic['integrator'] in ['Langevin', 'LangevinMiddle', 'NoseHoover', 'Brownian', 'VariableLangevin']:
-		intArgs.append(float(pDic['temperature']) * kelvin)
+    if eval(pDic['addBarostat']):
+        system.addForce(MonteCarloBarostat(float(pDic['pressure']) * bar, float(pDic['temperature']) * kelvin))
 
-	if pDic['integrator'] in ['Langevin', 'LangevinMiddle', 'Brownian', 'VariableLangevin']:
-		intArgs.append(float(pDic['fricCoef']) / picosecond)
+    intArgs = []
+    intClass = eval('{}Integrator'.format(pDic['integrator']))
+    if pDic['integrator'] in ['Langevin', 'LangevinMiddle', 'NoseHoover', 'Brownian', 'VariableLangevin']:
+        intArgs.append(float(pDic['temperature']) * kelvin)
 
-	if pDic['integrator'] not in ['VariableVerlet', 'VariableLangevin']:
-		intArgs.append(float(pDic['stepSize']) * picosecond)
+    if pDic['integrator'] in ['Langevin', 'LangevinMiddle', 'Brownian', 'VariableLangevin']:
+        intArgs.append(float(pDic['fricCoef']) / picosecond)
 
-	integrator = intClass(*intArgs)
+    if pDic['integrator'] not in ['VariableVerlet', 'VariableLangevin']:
+        intArgs.append(float(pDic['stepSize']) * picosecond)
 
-	kwargs = {}
-	if 'gpus' in pDic:
-		kwargs['platform'] = Platform.getPlatformByName('CUDA')
-		kwargs['platformProperties'] = {'DeviceIndex': pDic['gpus'].strip()}
+    integrator = intClass(*intArgs)
 
-	simulation = Simulation(pdb.topology, system, integrator, **kwargs)
-	simulation.context.setPositions(pdb.positions)
+    kwargs = {}
 
-	if eval(pDic['addMinimization']):
-		print('Running {} minimization steps or until <= {} kJ/mol'.format(pDic['maxIter'], pDic['minimTol']))
-		sys.stdout.flush()
-		simulation.reporters.append(StateDataReporter(sys.stdout, nTraj, step=True,
-																									potentialEnergy=True, temperature=True, volume=True))
-		simulation.reporters.append(StateDataReporter("min_log.txt", nTraj, step=True,
-																									potentialEnergy=True, temperature=True, volume=True))
-		simulation.minimizeEnergy(tolerance=float(pDic['minimTol'])*kilojoules_per_mole/nanometer,
-															maxIterations=int(pDic['maxIter']))
+    available_platforms = [Platform.getPlatform(i).getName()
+                           for i in range(Platform.getNumPlatforms())]
 
-	# Set up the reporters to report energies every 1000 steps.
-	simulation.reporters.append(DCDReporter(f'{sysName}.dcd', nTraj))
-	simulation.reporters.append(StateDataReporter("md_log.txt", nTraj, step=True,
-																								potentialEnergy=True, temperature=True, volume=True))
-	# run simulation
-	print('Running {} steps simulation'.format(pDic['nSteps']))
-	sys.stdout.flush()
-	simulation.step(int(pDic['nSteps']))
+    if 'gpus' in pDic and 'CUDA' in available_platforms:
+        print("Using CUDA platform")
+        kwargs['platform'] = Platform.getPlatformByName('CUDA')
+        kwargs['platformProperties'] = {'DeviceIndex': pDic['gpus'].strip()}
+    else:
+        print("CUDA not available. Using default platform (CPU).")
 
-	positions = simulation.context.getState(getPositions=True).getPositions()
-	PDBFile.writeFile(simulation.topology, positions, open(f'{sysName}.pdb', 'w'))
-	PDBxFile.writeFile(simulation.topology, positions, open(f'{sysName}.cif', 'w'))
+    simulation = Simulation(pdb.topology, system, integrator, **kwargs)
+    simulation.context.setPositions(pdb.positions)
+
+    if eval(pDic['addMinimization']):
+        print('Running {} minimization steps or until <= {} kJ/mol'.format(pDic['maxIter'], pDic['minimTol']))
+        sys.stdout.flush()
+        simulation.reporters.append(StateDataReporter(sys.stdout, nTraj, step=True,
+                                                                                                    potentialEnergy=True, temperature=True, volume=True))
+        simulation.reporters.append(StateDataReporter("min_log.txt", nTraj, step=True,
+                                                                                                    potentialEnergy=True, temperature=True, volume=True))
+        simulation.minimizeEnergy(tolerance=float(pDic['minimTol'])*kilojoules_per_mole/nanometer,
+                                                            maxIterations=int(pDic['maxIter']))
+
+    # Set up the reporters to report energies every 1000 steps.
+    simulation.reporters.append(DCDReporter(f'{sysName}.dcd', nTraj))
+    simulation.reporters.append(StateDataReporter("md_log.txt", nTraj, step=True,
+                                                                                                potentialEnergy=True, temperature=True, volume=True))
+    # run simulation
+    print('Running {} steps simulation'.format(pDic['nSteps']))
+    sys.stdout.flush()
+    simulation.step(int(pDic['nSteps']))
+
+    positions = simulation.context.getState(getPositions=True).getPositions()
+    PDBFile.writeFile(simulation.topology, positions, open(f'{sysName}.pdb', 'w'))
+    PDBxFile.writeFile(simulation.topology, positions, open(f'{sysName}.cif', 'w'))
