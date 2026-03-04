@@ -39,7 +39,7 @@ from utils import parseParams
 if __name__ == "__main__":
 	pDic = parseParams(sys.argv[1], sep='::')
 	sysFile, recFile = pDic['systemFile'], pDic['structureFile']
-	
+
 	parser = PDBFile if recFile.endswith('.pdb') else PDBxFile
 	pdb = parser(recFile)
 	with open(sysFile) as input:
