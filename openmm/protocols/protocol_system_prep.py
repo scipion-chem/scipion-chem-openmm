@@ -64,6 +64,107 @@ class ProtOpenMMSystemPrep(EMProtocol):
 
     It is necessary to insert a cleaned PDB structure from Protocol Import Atomic Structure
     or other similar protocols.
+
+    AI Generated:
+
+        ProtOpenMMSystemPrep - User Manual
+
+        Overview
+        --------
+        The ProtOpenMMSystemPrep protocol prepares molecular systems for MD simulations
+        using the OpenMM engine. It takes as input protein-ligand complexes, single
+        biomolecules, or sets of small molecules, and generates all necessary topology,
+        coordinate, and parameter files required for energy minimization, equilibration,
+        and production dynamics.
+
+        This protocol is particularly useful in computational structural biology and
+        structure-based drug discovery, providing a reproducible workflow for generating
+        chemically valid and physically consistent simulation-ready systems.
+
+        Inputs and General Workflow
+        ---------------------------
+        The protocol requires a prepared molecular structure as input:
+
+        - Protein/ligand complex (AtomStruct)
+        - Single ligand or set of ligands (SetOfSmallMolecules)
+
+        Users can specify which ligand to prepare, force fields for proteins, nucleic
+        acids, lipids, and small molecules, as well as solvent and ion conditions.
+
+        The workflow is divided into several key stages:
+
+        1. **Preparation**:
+            - The receptor structure is processed using pdbfixer to correct missing atoms
+              or residues.
+            - Hydrogens are optionally added to both protein and ligand structures.
+            - Ligand parameters are assigned automatically using GAFF, SMIRNOFF, or ESPALOMA.
+            - Charges can be generated, and ligand files are converted to SDF if needed.
+
+        2. **System Assembly**:
+            - The system is solvated in a water box, using absolute dimensions or padding.
+            - Ions are added to neutralize the system and achieve a specified salt concentration.
+            - Force field parameters for biomolecules, water, and small molecules are combined
+              into OpenMM-compatible XML files.
+
+        3. **Output Generation**:
+            - Topology, coordinate, and system XML files are generated.
+            - Ligand topology files are created if ligand input is provided.
+            - Outputs are collected in an OpenMMSystem object for use in downstream simulations.
+
+        Force Field and Solvent Models
+        -------------------------------
+        Users can select from multiple force fields:
+
+        - Proteins, nucleic acids, and lipids:
+            * Amber14, CHARMM36, Older Amber/CHARMM variants
+        - Small molecules:
+            * GAFF, SMIRNOFF, ESPALOMA
+        - Water/solvent:
+            * TIP3P, SPC/E, OPC, OPC3, TIP4PEW, TIP5P, SWM4-NDP
+
+        Nonbonded interactions are configurable:
+            - Cutoff, PME, Ewald, LJPME, or no cutoff
+            - Cutoff distances can be specified in nm
+        Bond and angle constraints are also configurable.
+
+        Simulation Parameters
+        --------------------
+        Users can adjust:
+
+        - System size or padding around solute
+        - Salt concentration and ionic composition (cation/anion type)
+        - Hydrogen addition and pH for protonation
+        - Force field selections for all components
+        - Nonbonded interaction methods and cutoffs
+        - Optional constraints on bonds and angles
+
+        Outputs and Interpretation
+        --------------------------
+        After execution, the protocol generates:
+
+        - System PDB file
+        - CIF file
+        - OpenMM system XML file
+        - Ligand topology (if ligand input provided)
+
+        These outputs are fully compatible with OpenMM simulations, including energy
+        minimization, equilibration, production MD, or further analysis.
+
+        Practical Recommendations
+        -------------------------
+        - Always check force field assignments for consistency with the simulation goals.
+        - For charged systems, enable neutralization and salt addition to mimic physiological
+          conditions.
+        - Add hydrogens according to the target pH to ensure correct protonation states.
+        - Use GPU execution when possible to accelerate simulation setup and testing.
+
+        Final Perspective
+        -----------------
+        ProtOpenMMSystemPrep provides a comprehensive and reproducible workflow for
+        preparing molecular systems for MD simulations. It integrates structure
+        preparation, solvation, ion addition, and force field assignment into a
+        single protocol compatible with Scipion-Chem workflows, ensuring reliable
+        simulation-ready systems for biomolecular modeling and drug discovery studies.
     """
     _label = 'system preparation'
 
