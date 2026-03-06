@@ -25,6 +25,8 @@
 # **************************************************************************
 
 import os, csv, subprocess
+from email.policy import default
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import BoundaryNorm, ListedColormap
@@ -226,6 +228,9 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       group.addParam('barcodeType', params.EnumParam, label='Which barcode to display: ',
                      condition='openmmdlAnalysis==1', choices=self.getBarcodeTypes(),
                      help='Which feature of the barcodes to plot')
+      group.addParam('bindingModeType', params.EnumParam, label='Which barcode to display: ',
+                     condition='openmmdlAnalysis==2', choices=['ligand', 'residue'],
+                     help='Which binding modes to plot', default=0)
       group.addParam('displayOpenMMDL', params.LabelParam, label='Display OpenMMDL analysis: ',
                      help='Show the OpenMMDL barcodes, RMSD or interaction Markov states generated')
 
@@ -290,10 +295,14 @@ class OpenMMSystemPViewer(MDSystemPViewer):
         title = 'RMSD over time'
       elif option == 1:
         barType = self.getEnumText("barcodeType")
-        imgFile = os.path.join(anaDir, f'Barcodes/{barType}_interactions.png')
+        imgFile = os.path.join(anaDir, f'BindingModes_ligand/Barcodes/{barType}_interactions.png')
         title = f'{barType} barcodes'
       elif option == 2:
-        imgFile = os.path.join(anaDir, 'Binding_Modes_Markov_States/all_binding_modes_arranged.png')
+        bindModeType = self.getEnumText("bindingModeType")
+        if bindModeType == 'ligand':
+            imgFile = os.path.join(anaDir, 'BindingModes_ligand/Binding_Modes_Markov_States/all_binding_modes_arranged.png')
+        elif bindModeType == 'residue':
+            imgFile = os.path.join(anaDir, 'BindingModes_residue/Binding_Modes_Markov_States/all_binding_modes_arranged.png')
         title = 'Binding_Modes_Markov_States'
       self.displayImage(imgFile, title=title)
 
@@ -346,7 +355,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       if not os.path.exists(anaDir):
         return []
       else:
-        anaDir = os.path.join(anaDir, 'Barcodes')
+        anaDir = os.path.join(anaDir, 'BindingModes_ligand', 'Barcodes')
         types = []
         for file in os.listdir(anaDir):
           if '_interactions.png' in file:
