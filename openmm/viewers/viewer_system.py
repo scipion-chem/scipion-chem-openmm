@@ -25,7 +25,6 @@
 # **************************************************************************
 
 import os, csv, subprocess
-from email.policy import default
 
 import numpy as np
 import matplotlib.pyplot as plt
