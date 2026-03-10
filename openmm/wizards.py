@@ -30,8 +30,12 @@ This wizard will show the structure of the pdb using a matplotlib viewer
 to select the radius of the sphere that contains the protein or a desired zone.
 """
 
+import os
+
 from pwchem.wizards import SelectMultiChainWizard, SelectElementWizard, \
-  SelectChainWizardQT, SelectResidueWizardQT, SelectAtomWizardQT
+  SelectChainWizardQT, SelectResidueWizardQT, SelectAtomWizardQT, VariableWizard
+from pwchem.utils import getBaseName
+from pwchem.viewers import PyMolViewer
 
 from openmm.protocols import ProtOpenMMSystemPrep, ProtOpenDuckSimulation
 from openmm.viewers import OpenMMSystemPViewer
@@ -65,3 +69,51 @@ SelectElementWizard().addTarget(protocol=OpenMMSystemPViewer,
                                 targets=['repFeature'],
                                 inputs=['getMDFeatures'],
                                 outputs=['repFeature'])
+
+class ViewInputComplexWizard(VariableWizard):
+  """Visualize the chosen ligand with the correspondant labels"""
+  _targets, _inputs, _outputs = [], {}, {}
+
+  def getMol(self, inSet, molName):
+    myMol = None
+    for mol in inSet:
+      if mol.__str__() == molName:
+        myMol = mol.clone()
+        break
+    if myMol == None:
+      print('The input ligand is not found')
+      return None
+    else:
+      return myMol
+
+  def writePmlFile(self, pmlFile, topoFile, sysName):
+    pmlStr = ''
+
+    topoFile = os.path.abspath(topoFile)
+    pmlStr += f'load {topoFile}, {sysName}\nhide spheres, {sysName}\nshow sticks, {sysName}\nhide everything, resn HOH or resn WAT\n'
+    pmlStr += 'zoom resn LIG\nselect ligand, resn LIG\nlabel ligand and name CA, "%-s" % (ID)\n' \
+              'label ligand and not name CA, "%-s" % (ID)\nhide everything, (resn LIG) and (elem H)\ncolor gray70, not resn LIG'
+
+    with open(pmlFile, 'w') as f:
+      f.write(pmlStr)
+
+  def show(self, form, *params):
+    protocol = form.protocol
+    project = protocol.getProject()
+
+    system = protocol.getMDSystem()
+    topoFile = system.getFileName()
+    sysName = getBaseName(topoFile)
+
+    pmlsDir = project.getTmpPath()
+    pmlFile = os.path.join(pmlsDir, '{}.pml'.format(sysName))
+    self.writePmlFile(pmlFile, topoFile, sysName)
+
+    pymolV = PyMolViewer(project=project)
+    view = pymolV._visualize(os.path.abspath(pmlFile), cwd=os.path.dirname(pmlFile))[0]
+    view.show()
+
+ViewInputComplexWizard().addTarget(protocol=OpenMMSystemPViewer,
+                              targets=['viewLigand'],
+                              inputs=[],
+                              outputs=[])

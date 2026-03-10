@@ -12,7 +12,7 @@ def parseParams(paramsFile, listParams=[], sep=':'):
         paramsDic[key.strip()] = value.strip()
   return paramsDic
 
-def parseMoleculeFile(molFile):
+def parseMoleculeFile(molFile, sanitize=True):
   from rdkit import Chem
   if molFile.endswith('.mol2'):
     mol = Chem.MolFromMol2File(molFile)
@@ -21,11 +21,13 @@ def parseMoleculeFile(molFile):
   elif molFile.endswith('.pdb'):
     mol = Chem.MolFromPDBFile(molFile)
   elif molFile.endswith('.smi'):
-    f = open(molFile, "r")
-    firstline = next(f)
-    mol = Chem.MolFromSmiles(str(firstline))
+    with open(molFile, "r") as f:
+      line = f.readline()
+      if line.startswith('SMILES'):
+        line = f.readline()
+      mol = Chem.MolFromSmiles(line)
   elif molFile.endswith('.sdf'):
-    suppl = Chem.SDMolSupplier(molFile)
+    suppl = Chem.SDMolSupplier(molFile, sanitize=sanitize)
     for mol in suppl:
       break
   else:
@@ -33,11 +35,12 @@ def parseMoleculeFile(molFile):
 
   return mol
 
-def getMolFilesDic(molFiles):
+def getMolFilesDic(molFiles, sanitize=True):
   molsDict = {}
   for molFile in molFiles:
-    m = parseMoleculeFile(molFile)
-    molsDict[m] = molFile
+    m = parseMoleculeFile(molFile, sanitize=sanitize)
+    if m:
+      molsDict[m] = molFile
 
   mols = list(molsDict.keys())
   return molsDict, mols

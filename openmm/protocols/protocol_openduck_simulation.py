@@ -50,54 +50,120 @@ buildSystem = 'openmmBuildSystem.py'
 
 class ProtOpenDuckSimulation(EMProtocol):
     """
-    This protocol will start a undocking simulation using OpenMM
-    
-    User IA Manual: OpenDucksSimulation Protocol
+    This protocol will start a undocking simulation using OpenMM.
 
-The OpenDucksSimulation protocol enables ligand?receptor unbinding simulations
-using the OpenDucks framework integrated within Scipion-Chem. This protocol is
-used to explore the dissociation pathway of a ligand from a target binding site,
-generating a set of intermediate conformations and sampling the energy
-landscape along the unbinding coordinate.
+    AI Generated:
 
-To start, the user must provide a complex consisting of a protein and a bound
-ligand. This structure must already be properly prepared and aligned, typically
-in PDB format, and should reflect the binding pose from which the ligand will be
-pulled. The user must also provide the force field parameters to be used for
-simulation, including topology and coordinate files for the system, along with
-any solvent or ion models if relevant. These inputs ensure that the molecular
-system is physically consistent before initiating the unbinding trajectory.
+        ProtOpenDuckSimulation - User Manual
 
-A key parameter is the direction and distance along which the ligand is to be
-steered away from the binding site. The user can define this displacement
-vector explicitly or allow the protocol to compute it based on geometric
-criteria, such as the vector from the ligand center of mass to the mouth of the
-binding pocket. The number of windows or steps into which the unbinding pathway
-is divided determines the resolution of the trajectory. A higher number of
-windows results in a finer-grained sampling of the process, but also increases
-computational cost.
+        Overview
+        --------
+        The ProtOpenDuckSimulation protocol performs ligand-receptor unbinding simulations
+        using the OpenDucks framework integrated with Scipion-Chem. Its main purpose is
+        to explore the dissociation pathway of a ligand from its binding site,
+        generating a set of intermediate conformations and sampling the energy landscape
+        along the unbinding coordinate.
 
-Each window corresponds to a restrained molecular dynamics simulation, where the
-ligand is held at a fixed distance from the receptor while sampling conformations
-at that point along the path. The user can configure the simulation length,
-temperature, force constants, and restraint behavior for each window. These
-parameters control the stability and physical realism of the simulation, and
-should be adjusted based on the flexibility of the system and the desired level
-of sampling.
+        This protocol is particularly useful in structure-based drug discovery,
+        allowing the investigation of ligand binding dynamics, assessment of interaction
+        strength, and generation of conformational ensembles for further analysis.
 
-The protocol produces a set of output structures and energies for each window,
-which can be analyzed to estimate binding free energy profiles or visualize the
-unbinding process. These outputs are compatible with other Scipion-Chem
-protocols for clustering, scoring, or further simulation. Additionally, a log
-file and summary of the protocol?s execution are generated, enabling full
-traceability of the parameters used and the simulation results obtained.
+        Inputs and General Workflow
+        ---------------------------
+        The protocol requires a prepared protein-ligand complex as input. This complex
+        must reflect the initial binding pose of the ligand, typically in PDB format.
+        Users must also provide force field parameters, including topology and
+        coordinate files for the system, along with any solvent or ion models, ensuring
+        a physically consistent simulation setup.
 
-In summary, this protocol provides an automated implementation of the OpenDucks
-method for ligand unbinding simulations. It allows users to investigate binding
-site dynamics, evaluate ligand?receptor interactions along dissociation paths,
-and generate ensembles for further computational analysis in structure-based
-drug discovery workflows.
-    
+        The simulation workflow is divided into several key stages:
+
+        1. **Preparation**:
+            - The receptor structure is processed using pdbfixer to correct missing atoms
+              or residues.
+            - Hydrogens are reassigned on the ligand.
+            - Charges are optionally recalculated using the Gasteiger method.
+            - Chunking can be applied to focus the simulation on the ligand binding
+              environment, using a specified cutoff distance (in Ångströms).
+
+        2. **Simulation Setup**:
+            - The dissociation pathway is divided into a series of restrained molecular
+              dynamics (MD) windows.
+            - The user can define the direction and distance of ligand displacement, or
+              the protocol can compute it automatically based on geometric criteria.
+            - Force constants, MD length, number of cycles, initial velocities, and
+              hydrogen bond distances are configurable to control simulation realism and
+              stability.
+
+        3. **Execution**:
+            - OpenMM performs the undocking simulation, producing trajectories for each
+              window.
+            - Multiple MD/SMD cycles sample conformational space along the unbinding path.
+            - Outputs include structural snapshots and energy profiles for analysis.
+
+        Masking / Chunking
+        ------------------
+        Chunking allows the simulation to focus on a local environment surrounding
+        a specified ligand?protein interaction. By applying a cutoff distance, only the
+        relevant residues and atoms are simulated, reducing computational cost while
+        preserving biologically meaningful interactions. This is particularly useful
+        for large proteins or when investigating specific hydrogen bonds.
+
+        Force Field and Solvent Models
+        -------------------------------
+        The protocol supports multiple force fields for small molecules, proteins, and
+        solvent:
+
+        - Small molecules: SMIRNOFF, GAFF, ESPALOMA
+        - Proteins: AMBER99SB, AMBER14-all
+        - Solvent: TIP3P, SPC/E
+
+        Users must also specify ionic strength to simulate physiological conditions
+        and a solvent buffer to define the periodic box boundaries.
+
+        Simulation Parameters
+        --------------------
+        Users can adjust advanced simulation parameters:
+
+        - Number of MD/SMD cycles
+        - Length of MD sampling between SMD runs
+        - Force constants for restraints
+        - Initial velocities
+        - Hydrogen bond distances
+
+        For high-performance setups, GPU execution is supported, with configurable
+        device selection.
+
+        Outputs and Interpretation
+        --------------------------
+        After execution, the protocol generates:
+
+        - PDB and DCD trajectory files of the unbinding process
+        - OpenMM system XML files representing the prepared system
+        - CSV files containing minimum work (W_min) and Jarzynski-averaged work
+          (W_jarzynski) profiles
+        - Parameter and log files for full reproducibility
+
+        These outputs can be used to estimate binding free energies, visualize the
+        unbinding process, and perform further simulations or clustering.
+
+        Practical Recommendations
+        -------------------------
+        - Start with default parameters and inspect the output trajectories for
+          physical realism.
+        - Apply chunking for large protein systems to reduce simulation time while
+          focusing on the interaction of interest.
+        - Use GPU execution for computationally intensive simulations to accelerate
+          MD sampling.
+        - Validate force field assignments and hydrogen placements to ensure
+          physically consistent trajectories.
+
+        Final Perspective
+        -----------------
+        ProtOpenDuckSimulation provides an automated and reproducible method for
+        ligand?receptor undocking simulations. It allows users to explore binding
+        site dynamics, evaluate interaction energetics, and generate conformational
+        ensembles for downstream analysis in drug discovery or biophysical studies.
     """
     _label = 'openduck undocking simulation'
 

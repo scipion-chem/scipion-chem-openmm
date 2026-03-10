@@ -56,13 +56,21 @@ class Plugin(pwchem.Plugin):
         """ This function installs Espaloma package. """
         installer = InstallHelper(OPENMM_DIC['name'], packageHome=cls.getVar(OPENMM_DIC['home']),
                                   packageVersion=OPENMM_DIC['version'])
-
+        home = cls.getEnvName(OPENMM_DIC)
         # Installing package
-        installer.addCommand(f'conda env create -f {cls.getPluginHome("espalomaEnv.yml")} -y ',
-                             'OPENMM_ENV_CREATED').\
-            addCommand(f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
-                        'ESPALOMA_MODEL_DOWNLOADED'). \
-            addPackage(env, dependencies=['conda'], default=default)
+        installer.addCommand(
+            f'conda create -n {home} -c conda-forge espaloma=0.4.0 openmm=8.3 cuda-version=12.8 -y ',
+            'OPENMM_ENV_CREATED'
+        ).addCommand(
+            f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
+            'ESPALOMA_MODEL_DOWNLOADED'
+        ).addCondaPackages(
+            ['openmmdl'], channel='conda-forge'
+        ).addCommand(
+            f"cd {cls.getVar(OPENMM_DIC['home'])} && git clone https://github.com/openmm/openmm-cph.git",
+            'CPH_REPO_CLONED'
+        ).addPackage(env, dependencies=['conda'], default=default)
+
 
     @classmethod
     def addODUCKPackage(cls, env, default=True):
@@ -74,7 +82,7 @@ class Plugin(pwchem.Plugin):
         installer.getCloneCommand(cls.getOpenDuckGithub(), targeName='ODUCK_CLONED'). \
             addCommand(f'{cls.getEnvActivationCommand(OPENMM_DIC)} && cd openduck && python setup.py install',
                        'ODUCK_INSTALLED'). \
-            addCommand(f'python {cls.getScriptsDir("_updateOpenMMImports.py")} {cls.getEnvPath(OPENMM_DIC)}',
+            addCommand(f'python {cls.getScriptsDir("_updateOpenMMImports.py")} {ODUCK_DIC["name"]}',
                        'ODUCK_OPENMM_UPDATED'). \
             addPackage(env, dependencies=['conda'], default=default)
 
@@ -94,7 +102,7 @@ class Plugin(pwchem.Plugin):
     @classmethod
     def getEspalomaModelUrl(cls):
         v = ESPALOMA_DIC["version"]
-        return f'https://github.com/choderalab/espaloma/releases/download/{v}/espaloma-{v}.pt'
+        return f'https://github.com/choderalab/espaloma/releases/download/{v}/espaloma-latest.pt'
 
     @classmethod
     def getEspalomaModelFile(cls):

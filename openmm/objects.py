@@ -42,6 +42,7 @@ class OpenMMSystem(MDSystem):
     self._serieFile = pwobj.String(kwargs.get('serieFile', None))
     self._cifFile = pwobj.String(kwargs.get('cifFile', None))
     self._repFile = pwobj.String(kwargs.get('repFile', None))
+    self._openmmdlDir = pwobj.String(kwargs.get('openmmdlDir', None))
 
     self._nFrames = pwobj.Integer(kwargs.get('nFrames', None))
     self._nTime = pwobj.Float(kwargs.get('nTime', None))
@@ -52,6 +53,12 @@ class OpenMMSystem(MDSystem):
       strStr += f', frames: {self._nFrames.get()}, time(ps): {self._nTime.get()}'
     strStr += ')'
     return strStr
+
+  def getNFrames(self):
+    return self._nFrames.get()
+
+  def getNTime(self):
+    return self._nTime.get()
 
   def getReportFile(self):
     return self._repFile.get()
@@ -72,6 +79,9 @@ class OpenMMSystem(MDSystem):
   def setCifFile(self, value):
     self._cifFile.set(value)
 
-  def getLigandID(self):
-    return 'LIG'
+  def getOpenmmdlDir(self):
+    return self._openmmdlDir.get()
+
+  def setOpenmmdlDir(self, value):
+    self._openmmdlDir.set(value)
 

@@ -49,7 +49,8 @@ STRUCTURE, LIGAND = 0, 1
 GAFF_Vs = ['gaff-1.4', 'gaff-1.8', 'gaff-1.81', 'gaff-2.1', 'gaff-2.11']
 SMIRNOFF_Vs = ['openff-1.0.1', 'openff-1.1.1', 'openff-1.0.0-RC1', 'openff-1.2.0', 'openff-1.1.0', 'openff-1.0.0', 'openff-1.0.0-RC2', 'smirnoff99Frosst-1.0.2', 'smirnoff99Frosst-1.0.0', 'smirnoff99Frosst-1.1.0', 'smirnoff99Frosst-1.0.4', 'smirnoff99Frosst-1.0.8', 'smirnoff99Frosst-1.0.6', 'smirnoff99Frosst-1.0.3', 'smirnoff99Frosst-1.0.1', 'smirnoff99Frosst-1.0.5', 'smirnoff99Frosst-1.0.9', 'smirnoff99Frosst-1.0.7']
 SMIRNOFF_Vs.sort()
-ESPALOMA_Vs = ['espaloma-0.3.2']
+ESPALOMA_Vs = ['espaloma-0.4.0']
+
 
 CATION_NAMES = ['Cs+', 'K+', 'Li+', 'Na+', 'Rb+']
 ANION_NAMES = ['Cl-', 'Br-', 'F-', 'I-']
@@ -64,50 +65,106 @@ class ProtOpenMMSystemPrep(EMProtocol):
     It is necessary to insert a cleaned PDB structure from Protocol Import Atomic Structure
     or other similar protocols.
 
-User IA Manual: SystemPrep Protocol
+    AI Generated:
 
-The SystemPrep protocol prepares a molecular system for simulation using the
-OpenMM engine. It takes as input a protein?ligand complex or other biomolecular
-assembly and produces all necessary topology and coordinate files required for
-energy minimization, equilibration, or production dynamics within the Scipion-Chem
-workflow.
+        ProtOpenMMSystemPrep - User Manual
 
-To begin, the user must provide a molecular structure in PDB format that includes
-all components to be simulated. This structure may contain a receptor, a ligand,
-solvent molecules, and optionally cofactors or ions. The protocol parses this
-structure and separates it into distinct components, assigning appropriate force
-field parameters based on user selection. The choice of force field affects how
-proteins, nucleic acids, and small molecules are parameterized, and should be
-consistent with the physical modeling goals of the simulation.
+        Overview
+        --------
+        The ProtOpenMMSystemPrep protocol prepares molecular systems for MD simulations
+        using the OpenMM engine. It takes as input protein-ligand complexes, single
+        biomolecules, or sets of small molecules, and generates all necessary topology,
+        coordinate, and parameter files required for energy minimization, equilibration,
+        and production dynamics.
 
-In addition to the force field, the user can specify whether the system should be
-solvated. If solvation is enabled, a water box is added around the structure,
-with optional padding to define the box size and periodic boundary conditions.
-The ionic strength of the system can also be adjusted by adding counterions or
-salts to neutralize the charge and mimic physiological conditions. These settings
-allow for realistic simulation environments and influence the stability of the
-resulting system during dynamics.
+        This protocol is particularly useful in computational structural biology and
+        structure-based drug discovery, providing a reproducible workflow for generating
+        chemically valid and physically consistent simulation-ready systems.
 
-Another critical step in the protocol is the assignment of ligand parameters.
-Small molecules not covered by standard biomolecular force fields must be
-parameterized separately. The protocol allows users to supply ligand parameters
-in formats such as `.xml` and `.mol2`, or to rely on automated tools that generate
-parameters based on general force fields like GAFF or OpenFF. These parameters
-are integrated into the system topology before final assembly.
+        Inputs and General Workflow
+        ---------------------------
+        The protocol requires a prepared molecular structure as input:
 
-The user can choose whether to perform energy minimization on the system once
-assembly is complete. Minimization helps to relieve steric clashes and optimize
-initial geometry before launching longer simulations. The resulting system,
-including topology, coordinates, box vectors, and integrator settings, is
-exported in OpenMM-compatible formats. These outputs serve as the input for
-subsequent simulation protocols within Scipion-Chem, such as molecular dynamics,
-umbrella sampling, or unbinding simulations.
+        - Protein/ligand complex (AtomStruct)
+        - Single ligand or set of ligands (SetOfSmallMolecules)
 
-In summary, the SystemPrep protocol provides a complete and customizable workflow
-for assembling chemically and physically valid molecular systems. It ensures
-compatibility with OpenMM and other simulation engines, and serves as a
-foundation for rigorous and reproducible molecular modeling studies.
+        Users can specify which ligand to prepare, force fields for proteins, nucleic
+        acids, lipids, and small molecules, as well as solvent and ion conditions.
 
+        The workflow is divided into several key stages:
+
+        1. **Preparation**:
+            - The receptor structure is processed using pdbfixer to correct missing atoms
+              or residues.
+            - Hydrogens are optionally added to both protein and ligand structures.
+            - Ligand parameters are assigned automatically using GAFF, SMIRNOFF, or ESPALOMA.
+            - Charges can be generated, and ligand files are converted to SDF if needed.
+
+        2. **System Assembly**:
+            - The system is solvated in a water box, using absolute dimensions or padding.
+            - Ions are added to neutralize the system and achieve a specified salt concentration.
+            - Force field parameters for biomolecules, water, and small molecules are combined
+              into OpenMM-compatible XML files.
+
+        3. **Output Generation**:
+            - Topology, coordinate, and system XML files are generated.
+            - Ligand topology files are created if ligand input is provided.
+            - Outputs are collected in an OpenMMSystem object for use in downstream simulations.
+
+        Force Field and Solvent Models
+        -------------------------------
+        Users can select from multiple force fields:
+
+        - Proteins, nucleic acids, and lipids:
+            * Amber14, CHARMM36, Older Amber/CHARMM variants
+        - Small molecules:
+            * GAFF, SMIRNOFF, ESPALOMA
+        - Water/solvent:
+            * TIP3P, SPC/E, OPC, OPC3, TIP4PEW, TIP5P, SWM4-NDP
+
+        Nonbonded interactions are configurable:
+            - Cutoff, PME, Ewald, LJPME, or no cutoff
+            - Cutoff distances can be specified in nm
+        Bond and angle constraints are also configurable.
+
+        Simulation Parameters
+        --------------------
+        Users can adjust:
+
+        - System size or padding around solute
+        - Salt concentration and ionic composition (cation/anion type)
+        - Hydrogen addition and pH for protonation
+        - Force field selections for all components
+        - Nonbonded interaction methods and cutoffs
+        - Optional constraints on bonds and angles
+
+        Outputs and Interpretation
+        --------------------------
+        After execution, the protocol generates:
+
+        - System PDB file
+        - CIF file
+        - OpenMM system XML file
+        - Ligand topology (if ligand input provided)
+
+        These outputs are fully compatible with OpenMM simulations, including energy
+        minimization, equilibration, production MD, or further analysis.
+
+        Practical Recommendations
+        -------------------------
+        - Always check force field assignments for consistency with the simulation goals.
+        - For charged systems, enable neutralization and salt addition to mimic physiological
+          conditions.
+        - Add hydrogens according to the target pH to ensure correct protonation states.
+        - Use GPU execution when possible to accelerate simulation setup and testing.
+
+        Final Perspective
+        -----------------
+        ProtOpenMMSystemPrep provides a comprehensive and reproducible workflow for
+        preparing molecular systems for MD simulations. It integrates structure
+        preparation, solvation, ion addition, and force field assignment into a
+        single protocol compatible with Scipion-Chem workflows, ensuring reliable
+        simulation-ready systems for biomolecular modeling and drug discovery studies.
     """
     _label = 'system preparation'
 
@@ -229,10 +286,10 @@ foundation for rigorous and reproducible molecular modeling studies.
                         label='Input from: ', choices=['AtomStruct', 'SetOfSmallMolecules'],
                         help='Type of input you want to use')
         iGroup.addParam('inputStructure', params.PointerParam, pointerClass='SchrodingerAtomStruct, AtomStruct',
-                        label='Input structure to be prepared for MD:', condition='inputFrom==0',
+                        label='Input structure to be prepared for MD:', condition='inputFrom==0', allowsNull=True,
                         help='Atomic structure to be prepared for MD by solvation, ions addition etc')
         iGroup.addParam('inputSetOfMols', params.PointerParam, pointerClass='SetOfSmallMolecules',
-                        label='Input set of molecules:', condition=LIG_INPUT,
+                        label='Input set of molecules:', condition=LIG_INPUT, allowsNull=True,
                         help='Input set of docked molecules. One of them will be prepared together with its target')
         iGroup.addParam('inputLigand', params.StringParam, condition=LIG_INPUT,
                         label='Ligand to prepare: ',
@@ -282,10 +339,12 @@ foundation for rigorous and reproducible molecular modeling studies.
       outCifFile = self._getPath(f'{systemBasename}_system.cif')
       outSystemFile = self._getPath(f'{systemBasename}_system.xml')
 
-      ligName = self.inputLigand.get() if self.inputFrom.get() == LIGAND else None
       mFF, wFF = self.getFFFiles()
       outSystem = OpenMMSystem(filename=outStructFile, cifFile=outCifFile, serieFile=outSystemFile,
-                               ff=mFF, wff=wFF, ligName=ligName)
+                               ff=mFF, wff=wFF)
+      if self.inputFrom.get() == LIGAND:
+        molFile = os.path.relpath(self.getSpecifiedMolFile())
+        outSystem.setLigTopologyFile(molFile)
 
       self._defineOutputs(outputSystem=outSystem)
       # self._defineSourceRelation(self.inputStructure, outSystem)
