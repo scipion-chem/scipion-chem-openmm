@@ -107,10 +107,5 @@ if __name__ == "__main__":
 
             for i in range(0, len(conns), 4):
                 chunk = conns[i:i + 4]
-                conect_line = f"CONECT {atom_idx} " + " ".join(str(bonded_atom) for bonded_atom in chunk)
+                conect_line = f"CONECT{atom_idx:5d}" + "".join(f"{bonded_atom:5d}" for bonded_atom in chunk)
                 f.write(conect_line + "\n")
-
-
-
-
-
