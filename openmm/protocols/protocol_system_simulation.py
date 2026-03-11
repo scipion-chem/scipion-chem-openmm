@@ -193,14 +193,16 @@ class ProtOpenMMSystemSimulation(EMProtocol):
     def createOutputStep(self):
       systemName = self.getSystemName()
       systemFile = os.path.relpath(self.getSystemFile())
-      outTopFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
+      outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
+
+      topoFile = self.getTopologyFile()
       outCifFile = self._getPath(f'{systemName}.cif')
 
       mFF, wFF = self.getFFFiles()
       nFrames = self.getNFrames()
       nTime = nFrames * self.stepSize.get()
-      outSystem = OpenMMSystem(filename=outTopFile, serieFile=systemFile, cifFile=outCifFile,
-                               repFile=self._getPath('md_log.txt'),
+      outSystem = OpenMMSystem(filename=outPdbFile, serieFile=systemFile, cifFile=outCifFile,
+                               repFile=self._getPath('md_log.txt'), topoFile=topoFile,
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
       outSystem.setTrajectoryFile(outDcdFile)
 
@@ -251,3 +253,6 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
     def getSystemName(self):
       return self.inputSystem.get().getSystemName()
+
+    def getTopologyFile(self):
+      return self.inputSystem.get().getTopologyFile()
