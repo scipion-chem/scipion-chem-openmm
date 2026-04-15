@@ -213,14 +213,18 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       super().__init__(**args)
 
     def _defineReportParams(self, form):
-      group = form.addGroup('OpenMM reporter analysis')
+      section = form.getSection('Trajectory analysis')
+      group = section.addGroup('OpenMM reporter analysis')
       group.addParam('repFeature', params.StringParam, label='Display reporter feature: ', default='',
                      help='Which feature of the reporter to plot')
       group.addParam('displayReporter', params.LabelParam, label='Plot reporter trajectory analysis: ',
                      help='Plots a graph with the reporter feature chosen over the trajectory')
 
-      form.addSection('Receptor-ligand interactions')
-      group = form.addGroup('OpenMMDL analysis')
+      if form.getSection('Receptor-ligand interactions'):
+          section = form.getSection('Receptor-ligand interactions')
+      else:
+          section = form.addSection('Receptor-ligand interactions')
+      group = section.addGroup('OpenMMDL analysis')
       group.addParam('openmmdlAnalysis', params.EnumParam, label='OpenMMDL analysis: ', default=0,
                      choices=['RMSD', 'Barcodes', 'Binding Modes Markov States'],
                      help='Show the OpenMMDL interaction Markov States generated')
@@ -233,7 +237,7 @@ class OpenMMSystemPViewer(MDSystemPViewer):
       group.addParam('displayOpenMMDL', params.LabelParam, label='Display OpenMMDL analysis: ',
                      help='Show the OpenMMDL barcodes, RMSD or interaction Markov states generated')
 
-      group = form.addGroup('Receptor-ligand interactions')
+      group = section.addGroup('Receptor-ligand interactions')
       group.addParam('threshold', params.FloatParam, label='Interaction threshold: ', default=0.1,
                      help='Proportion of time through the simulation that a interaction must appear to be considered')
 
