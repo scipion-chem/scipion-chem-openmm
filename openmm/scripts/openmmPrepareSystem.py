@@ -89,4 +89,23 @@ if __name__ == "__main__":
     with open(f'{sysName}_system.xml', 'w') as output:
       output.write(XmlSerializer.serialize(system))
 
+    with open(f'{sysName}_topology.pdb', 'w') as f:
+        PDBFile.writeFile(modeller.topology, modeller.positions, f)
 
+        # Write bonds belonging to water molecules to make the loading in post-processing protocols possible
+        water_names = {'HOH', 'WAT', 'TIP3P', 'TIP4P', 'SOL', 'SPC'}
+        conect_dict = {}
+
+        for bond in modeller.topology.bonds():
+            a1, a2 = bond[0], bond[1]
+            if a1.residue.name in water_names or a2.residue.name in water_names:
+                i, j = a1.index + 1, a2.index + 1
+                conect_dict.setdefault(i, []).append(j)
+                conect_dict.setdefault(j, []).append(i)
+        for atom_idx, connections in sorted(conect_dict.items()):
+            conns = sorted(set(connections))
+
+            for i in range(0, len(conns), 4):
+                chunk = conns[i:i + 4]
+                conect_line = f"CONECT{atom_idx:5d}" + "".join(f"{bonded_atom:5d}" for bonded_atom in chunk)
+                f.write(conect_line + "\n")

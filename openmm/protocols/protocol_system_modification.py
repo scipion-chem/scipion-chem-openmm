@@ -153,7 +153,7 @@ class ProtStripWater(EMProtocol):
         nTime = self.inputSystem.get().getNTime()
 
         outSystem = OpenMMSystem(filename=outPdb, serieFile=outDcd if os.path.exists(outDcd) else '',
-                                 cifFile=outCif, ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
+                                 cifFile=outCif, ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime, topoFile=outPdb)
 
         if os.path.exists(outDcd):
             outSystem.setTrajectoryFile(outDcd)
