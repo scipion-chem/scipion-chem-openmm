@@ -425,6 +425,30 @@ def runConstantPhSimulation(params):
 
     print("[run] Final snapshot written.")
 
+    import mdtraj as md
+
+    print("Post-processing trajectory: Centering and Aligning...")
+
+    # 1. Load the trajectory we just created
+    # trajFile and finalPdb should be defined from your params dict
+    t = md.load(trajFile, top=finalPdb)
+
+    # 2. Fix Periodic Boundary Conditions (No more "flying" protein)
+    t.image_molecules(inplace=True)
+
+    # 3. Center the protein in the unit cell
+    t.center_coordinates()
+
+    # 4. SUPERPOSE (The Fix for the RMSD/RMSF math)
+    # We align every frame to the FIRST frame (index 0)
+    # using only the Backbone to avoid noise from sidechains.
+    selection = t.topology.select("backbone")
+    t.superpose(t, 0, atom_indices=selection)
+
+    # 5. Overwrite the raw files with the "Clean" versions
+    t.save_dcd(trajFile)
+    t[0].save_pdb(finalPdb)
+
 # ---------------------------
 # Entry point
 # ---------------------------

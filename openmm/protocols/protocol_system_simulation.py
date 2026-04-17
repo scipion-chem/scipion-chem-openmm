@@ -305,7 +305,11 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
         txtFilePath = os.path.join(os.path.dirname(recFile), 'extra')
         txtFile = os.path.join(txtFilePath, 'solvationParams.txt')
-        pdbFile = os.path.join(txtFilePath, f'{self.getSystemName().split("_")[0]}.pdb')
+        pdbFile = next(
+            f for f in os.listdir(txtFilePath)
+            if f.endswith(".pdb")
+        )
+        pdbFile = os.path.join(txtFilePath, pdbFile)
 
         solvParams = self.readSolvParams(txtFile)
         with open(paramsFile, 'w') as f:

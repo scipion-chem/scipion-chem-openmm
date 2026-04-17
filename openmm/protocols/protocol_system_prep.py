@@ -39,6 +39,7 @@ from pwchem import Plugin as pwchemPlugin
 from pwchem.constants import RDKIT_DIC
 from pwchem.utils import getBaseName, convertToSdf
 
+
 from .. import Plugin
 from ..constants import OPENMM_DIC
 from ..objects import OpenMMSystem
@@ -285,7 +286,7 @@ class ProtOpenMMSystemPrep(EMProtocol):
         iGroup.addParam('inputFrom', params.EnumParam, default=STRUCTURE,
                         label='Input from: ', choices=['AtomStruct', 'SetOfSmallMolecules'],
                         help='Type of input you want to use')
-        iGroup.addParam('inputStructure', params.PointerParam, pointerClass='SchrodingerAtomStruct, AtomStruct',
+        iGroup.addParam('inputStructure', params.PointerParam, pointerClass=' SchrodingerAtomStruct, AtomStruct',
                         label='Input structure to be prepared for MD:', condition='inputFrom==0', allowsNull=True,
                         help='Atomic structure to be prepared for MD by solvation, ions addition etc')
         iGroup.addParam('inputSetOfMols', params.PointerParam, pointerClass='SetOfSmallMolecules',
