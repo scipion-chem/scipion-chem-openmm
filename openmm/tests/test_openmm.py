@@ -27,8 +27,8 @@
 from pwem.protocols import ProtImportPdb
 from pyworkflow.tests import BaseTest, DataSet, setupTestProject
 from pwchem.protocols import ProtChemPrepareReceptor
-from pwchem.tests import TestPrepareReceptor, TestExtractLigand
-
+from pwchem.tests.tests_preparations import TestPrepareReceptor
+from pwchem.tests.tests_docking import TestExtractLigand
 from ..protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation, ProtOpenMMInteractionEnergy, ProtStripWater
 
 STRUCTURE, LIGAND = 0, 1
