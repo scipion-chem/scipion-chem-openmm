@@ -46,6 +46,115 @@ from pwem.convert import cifToPdb
 class ProtOpenMMSystemSimulation(EMProtocol):
     """
     This protocol will start a Molecular Dynamics simulation.
+
+    AI Generated:
+
+        ProtOpenMMSystemSimulation - User Manual
+
+        Overview
+        --------
+        The ProtOpenMMSystemSimulation protocol executes molecular dynamics simulations
+        on systems prepared with OpenMM. It supports both explicit and implicit solvent
+        simulations, constant pH setups, energy minimization, equilibration, and
+        production runs. The protocol leverages OpenMM's GPU acceleration for high
+        performance simulations and integrates optional trajectory analysis via OpenMMDL.
+
+        This protocol is designed for biomolecular modeling, drug discovery, and
+        computational structural biology, providing reproducible MD simulations and
+        analysis-ready outputs.
+
+        Inputs and General Workflow
+        ---------------------------
+        The protocol requires an OpenMMSystem object as input, which contains topology,
+        coordinates, and optionally ligand information. Users can specify:
+
+        - Number of simulation steps
+        - Whether to include energy minimization
+        - Integrator type and simulation temperature
+        - Barostat settings for NPT simulations
+        - Constant pH simulation parameters (if enabled)
+        - Trajectory output intervals and OpenMMDL analysis
+
+        The workflow is divided into key stages:
+
+        1. **Parameter Preparation**:
+            - Generate a simulation parameters file with all relevant settings.
+            - Assign force fields for solute and solvent, constraints, nonbonded methods,
+              cutoffs, and hydrogen mass repartitioning.
+            - Include ligand topology and optional constant pH models for titratable residues.
+
+        2. **Simulation Execution**:
+            - Run energy minimization if enabled, using user-defined tolerance and iterations.
+            - Run the selected MD integrator (Verlet, Langevin, NoseHoover, Brownian, etc.)
+              with specified step size, friction coefficient, and temperature.
+            - Optionally apply Monte Carlo barostat for pressure control (NPT).
+            - Perform constant pH simulations if enabled, including titration of selected residues.
+
+        3. **Trajectory Analysis**:
+            - Optionally analyze trajectories with OpenMMDL to extract ligand-centric
+              motion and interactions.
+            - Trajectory frames and system state files are saved for further analysis.
+
+        Force Field and Solvent Models
+        -------------------------------
+        Supported force fields include:
+
+        - Proteins, nucleic acids, lipids:
+            * Amber, CHARMM
+        - Small molecules:
+            * GAFF, SMIRNOFF, ESPALOMA
+        - Solvent models:
+            * TIP3P, SPC/E, TIP4PEW, TIP5P
+        - Implicit solvent models (for constant pH simulations):
+            * OBC1, OBC2, GBn, GBn2
+
+        Users can define nonbonded methods (NoCutoff, PME, Ewald, LJPME) and
+        optionally constrain bonds or angles for explicit or implicit solvents.
+
+        Simulation Parameters
+        --------------------
+        Users can configure:
+
+        - Number of MD steps, equilibration cycles, relaxation steps
+        - Steps per production or equilibration cycle
+        - Integrator type, step size, friction coefficient, temperature, collision frequency
+        - Barostat settings: pressure and update frequency
+        - Constant pH parameters: pH value(s), titratable residues, implicit solvent model
+        - Trajectory save intervals and analysis options
+        - GPU usage and device selection for high-performance execution
+
+        Outputs and Interpretation
+        --------------------------
+        After execution, the protocol generates:
+
+        - PDB and DCD trajectory files
+        - CIF files for system structure
+        - OpenMM system XML files
+        - Ligand topology (if applicable)
+        - Log files with simulation details
+        - OpenMMDL analysis outputs (if enabled)
+
+        Outputs can be used for:
+
+        - Evaluating system stability and conformational sampling
+        - Extracting trajectories for visualization or further MD studies
+        - Analyzing ligand motion and interactions via OpenMMDL
+
+        Practical Recommendations
+        -------------------------
+        - Always perform energy minimization before production MD to avoid instabilities.
+        - Use barostat for NPT simulations and check pressure coupling parameters.
+        - For constant pH simulations, carefully select titratable residues and pH values.
+        - Validate force field assignments and constraints before starting the simulation.
+        - Use GPU acceleration where possible for computational efficiency.
+
+        Final Perspective
+        -----------------
+        ProtOpenMMSystemSimulation provides a fully automated, reproducible, and flexible
+        framework for molecular dynamics simulations in both standard and constant pH
+        conditions. It integrates system preparation, energy minimization, production MD,
+        and optional trajectory analysis, ensuring high-quality outputs for biomolecular
+        modeling, drug design, and computational structural studies.
     """
     _label = 'system simulation'
     stepsExecutionMode = params.STEPS_PARALLEL
@@ -196,7 +305,11 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
         txtFilePath = os.path.join(os.path.dirname(recFile), 'extra')
         txtFile = os.path.join(txtFilePath, 'solvationParams.txt')
-        pdbFile = os.path.join(txtFilePath, f'{self.getSystemName().split("_")[0]}.pdb')
+        pdbFile = next(
+            f for f in os.listdir(txtFilePath)
+            if f.endswith(".pdb")
+        )
+        pdbFile = os.path.join(txtFilePath, pdbFile)
 
         solvParams = self.readSolvParams(txtFile)
         with open(paramsFile, 'w') as f:
