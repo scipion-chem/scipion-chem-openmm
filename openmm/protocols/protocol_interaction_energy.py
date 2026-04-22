@@ -51,6 +51,84 @@ scriptLigPrepName = 'rdkit_addHydrogens.py'
 class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation):
     """
     This protocol will calculate the interaction energy of protein and ligand in a system
+
+    AI Generated:
+
+        ProtOpenMMInteractionEnergy - User Manual
+
+        Overview
+        --------
+        This protocol calculates the interaction energy between a protein receptor and
+        docked ligand(s) using OpenMM simulations. It evaluates both Coulomb (electrostatic)
+        and Lennard-Jones (van der Waals) interaction energies over the course of a trajectory,
+        allowing users to obtain average energies for further analysis.
+
+        Inputs
+        ------
+        - **inputFrom**: Enum specifying input type:
+            - `OpenMMSystem`: Use an existing OpenMMSystem for energy evaluation.
+            - `SetOfSmallMolecules`: Use a set of docked small molecules that will be
+              prepared, solvated, and simulated.
+        - **inputSystem**: OpenMMSystem object (required if `inputFrom==OpenMMSystem`),
+          containing structure, trajectory, and topology.
+        - **inputSetOfMols**: SetOfSmallMolecules object (required if `inputFrom==SetOfSmallMolecules`),
+          representing docked ligands.
+
+        Options
+        -------
+        - **Minimization**: Add energy minimization for systems without trajectories.
+        - **Integrator parameters**: Define integration scheme, step size, temperature,
+          and friction coefficient for MD simulations.
+        - **Forcefield parameters**: Specify force fields for receptor and ligands,
+          non-bonded interaction methods, and hydrogen treatment.
+        - **Solvent box and ions**: Configure solvation box, ion concentrations, and
+          boundary conditions when preparing systems from small molecules.
+
+        Workflow
+        --------
+        1. **Input Conversion** (if using SetOfSmallMolecules):
+           - Converts ligand poses to SDF format.
+           - Prepares ligands with hydrogen atoms using RDKit.
+
+        2. **System Preparation**:
+           - Generates solvated systems with force field parameters.
+           - Optionally adds ions and solvent box.
+
+        3. **Simulation**:
+           - Runs MD simulation on prepared systems.
+           - Computes Coulomb and Lennard-Jones interaction energies.
+           - For existing OpenMMSystems, it can operate directly on trajectories.
+
+        4. **Output Creation**:
+           - For OpenMMSystem inputs: updates the report file with interaction energies.
+           - For small molecule inputs: creates a copy of each molecule and stores
+             Coulomb and LJ energies as Float objects.
+
+        Outputs
+        -------
+        - **OpenMMSystem** (if inputFrom==OpenMMSystem): system with updated report file
+          including interaction energies.
+        - **SetOfSmallMolecules** (if inputFrom==SetOfSmallMolecules): copy of input molecules
+          with `coulomb_Interaction` and `lj_Interaction` properties populated.
+
+        Practical Recommendations
+        -------------------------
+        - Use this protocol after docking to evaluate binding energies of ligands.
+        - When using large sets of molecules, ensure sufficient computational resources
+          as solvation and simulation are computationally intensive.
+        - Verify that molecules are docked before running interaction energy calculations.
+
+        Summary & Interpretation
+        ------------------------
+        - Average Coulomb and LJ energies are computed from the trajectory or simulation output.
+        - Standard deviations are reported if multiple frames are available.
+        - Outputs can be used for ranking ligands or further post-processing analyses.
+
+        Warnings
+        --------
+        - Simulating more than 50 molecules from SetOfSmallMolecules can be computationally
+          expensive.
+        - Ensure molecules are docked; otherwise, interaction energies cannot be calculated.
     """
     _label = 'system interaction energy'
     stepsExecutionMode = params.STEPS_PARALLEL
