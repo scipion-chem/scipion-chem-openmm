@@ -34,6 +34,7 @@ import os
 from pyworkflow.protocol import params
 from pyworkflow.utils import Message
 from pwem.protocols import EMProtocol
+from pwem.objects import AtomStruct
 
 from pwchem import Plugin as pwchemPlugin
 
@@ -488,6 +489,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       outSystem = OpenMMSystem(filename=outPdbFile, serieFile=systemFile, cifFile=outCifFile,
                                repFile=self._getPath('md_log.txt'), topoFile=topoFile,
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
+      finalAtomStruct = AtomStruct(filename=outPdbFile)
       outSystem.setTrajectoryFile(outDcdFile)
 
       ligFile = self.inputSystem.get().getLigTopologyFile()
@@ -498,7 +500,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       if os.path.exists(anaDir):
         outSystem.setOpenmmdlDir(anaDir)
 
-      self._defineOutputs(outputSystem=outSystem)
+      self._defineOutputs(outputSystem=outSystem, lastFrameStruct=finalAtomStruct)
 
 
     def _warnings(self):

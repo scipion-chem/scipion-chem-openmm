@@ -193,7 +193,7 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep, ProtOpenMMSystemSimulati
         sdfFiles = []
         for mol in self.inputSetOfMols.get():
             molFile = mol.getPoseFile()
-            sdfFiles.append(convertToSdf(self, molFile))
+            sdfFiles.append(os.path.abspath(convertToSdf(self, molFile)))
 
         paramFile = self.writePrepParamsFile(sdfFiles)
         pwchemPlugin.runScript(self, scriptLigPrepName, paramFile, env=RDKIT_DIC, cwd=self._getPath())
