@@ -82,7 +82,7 @@ class Plugin(pwchem.Plugin):
         installer.getCloneCommand(cls.getOpenDuckGithub(), targeName='ODUCK_CLONED'). \
             addCommand(f'{cls.getEnvActivationCommand(OPENMM_DIC)} && cd openduck && python setup.py install',
                        'ODUCK_INSTALLED'). \
-            addCommand(f'python {cls.getScriptsDir("_updateOpenMMImports.py")} {ODUCK_DIC["name"]}',
+            addCommand(f'{cls.getEnvActivationCommand(OPENMM_DIC)} && {cls.getOpenDuckOpenMMPatchCommand()}',
                        'ODUCK_OPENMM_UPDATED'). \
             addPackage(env, dependencies=['conda'], default=default)
 
@@ -112,3 +112,18 @@ class Plugin(pwchem.Plugin):
     def getOpenDuckGithub(cls):
         return "https://github.com/CBDD/openduck.git"
 
+    @classmethod
+    def getOpenDuckOpenMMPatchCommand(cls):
+        """Patch OpenDucks calls removed from OpenMM 8."""
+        stepFiles = ['equlibrate.py', 'normal_md.py', 'steered_md.py']
+        oldStr = 'Platform_getPlatformByName'
+        newStr = 'Platform.getPlatformByName'
+        patchCode = (
+            "from pathlib import Path; import site; "
+            "root = Path(site.getsitepackages()[0]) / 'duck' / 'steps'; "
+            f"files = {stepFiles!r}; old = {oldStr!r}; new = {newStr!r}; "
+            "[(p.write_text(t.replace(old, new)) if old in t else None) "
+            "for p in [root / f for f in files] if p.exists() "
+            "for t in [p.read_text()]]"
+        )
+        return f'python -c "{patchCode}"'
