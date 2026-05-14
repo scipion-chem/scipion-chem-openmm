@@ -59,7 +59,7 @@ class Plugin(pwchem.Plugin):
         home = cls.getEnvName(OPENMM_DIC)
         # Installing package
         installer.addCommand(
-            f'conda create -n {home} -c conda-forge espaloma=0.4.0 openmm=8.3 cuda-version=12.8 -y ',
+            f'conda create -n {home} -c conda-forge espaloma=0.4.0 openmm=8.3 cuda-version=12.8 ',
             'OPENMM_ENV_CREATED'
         ).addCommand(
             f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
@@ -80,7 +80,9 @@ class Plugin(pwchem.Plugin):
 
         # Installing package
         installer.getCloneCommand(cls.getOpenDuckGithub(), targeName='ODUCK_CLONED'). \
-            addCommand(f'{cls.getEnvActivationCommand(OPENMM_DIC)} && cd openduck && python setup.py install',
+            addCommand(f'{cls.getEnvActivationCommand(OPENMM_DIC)} && conda install -c conda-forge pip wheel -y && '
+                       f'python -m pip install --upgrade --force-reinstall "setuptools<70.0.0" && '
+                       f'cd openduck && python -m pip install .',
                        'ODUCK_INSTALLED'). \
             addCommand(f'{cls.getEnvActivationCommand(OPENMM_DIC)} && {cls.getOpenDuckOpenMMPatchCommand()}',
                        'ODUCK_OPENMM_UPDATED'). \
