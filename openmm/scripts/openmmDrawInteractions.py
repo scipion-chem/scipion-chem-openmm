@@ -120,7 +120,7 @@ def parsePDBAtomNumbers(ligFile):
 		d = {}
 		with open(ligFile) as f:
 				for i, line in enumerate(f):
-						d[int(line[7:11])] = i
+						d[int(line[6:11])] = i
 		return d
 
 def removeNumbers(s):
