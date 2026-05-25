@@ -24,10 +24,12 @@
 # *  e-mail address 'you@yourinstitution.email'
 # *
 # **************************************************************************
+import os
 
 import math, sys
 import numpy as np
 
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, Patch
 import matplotlib.image as mpimg
@@ -69,13 +71,13 @@ def getExternalPosition(atomPoint, molCenter, distance=80):
 	return newX, newY
 
 
-def getMoleculeCenter(drawer, mol):
+def getMoleculeCenter(drawer, mol, canvasSize):
 	"""Get the center of the drawn molecules"""
 	coordsX, coordsY = [], []
 
 	for i in range(mol.GetNumAtoms()):
 		try:
-			atomPoint = drawer.GetDrawCoords(i)
+			atomPoint = getDrawCoords(drawer, canvasSize, i)
 			coordsX.append(atomPoint.x)
 			coordsY.append(atomPoint.y)
 		except:
@@ -87,6 +89,10 @@ def getMoleculeCenter(drawer, mol):
 	else:
 		return None
 
+def getDrawCoords(drawer, canvasSize, i):
+	atomPoint = drawer.GetDrawCoords(i)
+	atomPoint.y = int(canvasSize * 0.5) - atomPoint.y
+	return atomPoint
 
 def setConnectionLineCoords(c1, c2, displac, margin=50):
 	'''Draw the connection lines based on the extreme coordinates, with some margin. 
@@ -235,6 +241,49 @@ def addParallelLabel(ax, x, y, texto, color, distancia=5, offSign=1, **kwargs):
 	return label
 
 
+def flip_molecule_to_canvas(mol, canvas_size):
+	"""
+    Voltea la molécula y la escala para que quepa exactamente en el canvas.
+    """
+	conf = mol.GetConformer()
+	num_atoms = mol.GetNumAtoms()
+
+	# Obtener coordenadas actuales
+	coords = [(conf.GetAtomPosition(i).x, conf.GetAtomPosition(i).y)
+			  for i in range(num_atoms)]
+
+	# Encontrar límites
+	xs = [c[0] for c in coords]
+	ys = [c[1] for c in coords]
+	min_x, max_x = min(xs), max(xs)
+	min_y, max_y = min(ys), max(ys)
+
+	# Calcular escala para que quepa en canvas_size
+	width = max_x - min_x
+	height = max_y - min_y
+
+	# Si el ancho o alto es cero, evitar división por cero
+	if width == 0: width = 1
+	if height == 0: height = 1
+
+	scale = canvas_size / max(width, height)
+
+	# Centrar y volter
+	center_x = (min_x + max_x) / 2
+	center_y = (min_y + max_y) / 2
+
+	for i in range(num_atoms):
+		pos = conf.GetAtomPosition(i)
+		# Escalar y centrar
+		x = (pos.x - center_x) * scale + canvas_size / 2
+		y = (pos.y - center_y) * scale + canvas_size / 2
+		# Aplicar flip vertical
+		y = canvas_size - y
+		conf.SetAtomPosition(i, (x, y, pos.z))
+
+	return mol
+
+
 class MoleculeInteractions:
 	'''Main object to draw a molecule and its interacting residues, obtained from OpenMMDL.
 	The residues are placed surrounding the moelcule, next to their interacting atoms, but their positions can be 
@@ -291,6 +340,9 @@ class MoleculeInteractions:
 
 		self.fig.canvas.draw()
 
+		if hasattr(self, 'plot_element'):
+			self.plot_element.set_cursor_data(False)
+
 	def onClose(self, event):
 		event.canvas.figure.savefig(self.outFile, dpi=300, bbox_inches='tight')
 		plt.close('all')
@@ -312,9 +364,9 @@ class MoleculeInteractions:
 		molPoints = self.getMolPoints()
 		cirDic = self.getCirclesDic(nDic)
 
-		centerX, centerY = getMoleculeCenter(self.drawer, self.mol)
+		centerX, centerY = getMoleculeCenter(self.drawer, self.mol, self.canvasSize)
 		newCircles = optimizeCirclePositions(list(cirDic.values()), molPoints, [centerX, centerY],
-																				 self.interactDistance, self.interactDistance)
+											 self.interactDistance, self.interactDistance)
 
 		for i, resId in enumerate(cirDic):
 			newCircle = newCircles[i]
@@ -330,19 +382,21 @@ class MoleculeInteractions:
 
 			self.drawer.WriteDrawingText('mol_temp_full.png')
 			imgFull = mpimg.imread('mol_temp_full.png')
+			imgFull = np.flipud(imgFull)
 
+			matplotlib.use('tkagg')
 			self.fig, self.ax = plt.subplots(figsize=(10, 10 * bboxHeight / bboxWidth))
-
 			self.ax.imshow(imgFull)
 			self.ax.set_xlim(bboxX[0], bboxX[1])
 			self.ax.set_ylim(bboxY[0], bboxY[1])
 			self.ax.set_axis_off()
 
+
 			self.fig.canvas.mpl_connect('button_press_event', self.onPress)
 			self.fig.canvas.mpl_connect('button_release_event', self.onRelease)
 			self.fig.canvas.mpl_connect('motion_notify_event', self.onMotion)
 			self.fig.canvas.mpl_connect('close_event', self.onClose)
-	
+
 	def drawAminoacids(self):
 		'''Draw all the interacting resiudes and their labels'''
 		for resId, (circleX, circleY) in self.cirDic.items():
@@ -350,7 +404,8 @@ class MoleculeInteractions:
 			circle = Circle(circleCoords, self.circleRadius, facecolor=COLOR_DIC[removeNumbers(resId.upper())],
 											linewidth=2, alpha=0.2, transform=self.ax.transData)
 			self.ax.add_patch(circle)
-			cirLabel = self.ax.text(circleX, circleY, resId, color='black', weight='bold', fontsize=8,
+			resIdTxt = f'{resId[:3]}{int(resId[3:])+40}'
+			cirLabel = self.ax.text(circleX, circleY, resIdTxt, color='black', weight='bold', fontsize=8,
 															ha='center', va='center', transform=self.ax.transData)
 
 			self.resCircles[resId] = circle
@@ -412,7 +467,7 @@ class MoleculeInteractions:
 	def getCirclesDic(self, nDic):
 		'''Gets the original positions of the circles, close to their interacting atoms'''
 		cirDic = {}
-		centerX, centerY = getMoleculeCenter(self.drawer, self.mol)
+		centerX, centerY = getMoleculeCenter(self.drawer, self.mol, self.canvasSize)
 		for resId, atomDic in nDic.items():
 			atomIdx = list(atomDic.keys())[0]
 			if isinstance(atomIdx, str):
@@ -421,7 +476,7 @@ class MoleculeInteractions:
 			else:
 				iDist = self.interactDistance
 
-			atomPoint = self.drawer.GetDrawCoords(atomIdx)
+			atomPoint = getDrawCoords(self.drawer, self.canvasSize, atomIdx)
 			atomPoint = [atomPoint.x, atomPoint.y]
 			circleX, circleY = getExternalPosition(atomPoint, (centerX, centerY), iDist)
 			cirDic[resId] = [circleX, circleY]
@@ -431,7 +486,7 @@ class MoleculeInteractions:
 		'''Returns the molecule atom coordinates'''
 		allPoints = []
 		for i in range(self.mol.GetNumAtoms()):
-			atomPoint = self.drawer.GetDrawCoords(i)
+			atomPoint = getDrawCoords(self.drawer, self.canvasSize, i)
 			allPoints.append((atomPoint.x, atomPoint.y))
 		return allPoints
 
@@ -456,14 +511,14 @@ class MoleculeInteractions:
 			if isinstance(atomIdx, str):
 				piCoords = []
 				for atomAro in atomIdx.split('_'):
-					atomPoint = self.drawer.GetDrawCoords(int(atomAro))
+					atomPoint = getDrawCoords(self.drawer, self.canvasSize, int(atomAro))
 					piCoords.append([atomPoint.x, atomPoint.y])
 
 				piPoint = np.mean(np.array(piCoords), axis=0)
 				atomCoords = (piPoint[0], piPoint[1])
 
 			else:
-				atomPoint = self.drawer.GetDrawCoords(atomIdx)
+				atomPoint = getDrawCoords(self.drawer, self.canvasSize, atomIdx)
 				atomCoords = (atomPoint.x, atomPoint.y)
 
 			nInts = len(intsDic)
