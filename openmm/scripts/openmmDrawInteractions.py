@@ -391,7 +391,6 @@ class MoleculeInteractions:
 			self.ax.set_ylim(bboxY[0], bboxY[1])
 			self.ax.set_axis_off()
 
-
 			self.fig.canvas.mpl_connect('button_press_event', self.onPress)
 			self.fig.canvas.mpl_connect('button_release_event', self.onRelease)
 			self.fig.canvas.mpl_connect('motion_notify_event', self.onMotion)
