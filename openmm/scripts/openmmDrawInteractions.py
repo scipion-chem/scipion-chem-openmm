@@ -360,8 +360,7 @@ class MoleculeInteractions:
 			circle = Circle(circleCoords, self.circleRadius, facecolor=COLOR_DIC[removeNumbers(resId.upper())],
 											linewidth=2, alpha=0.2, transform=self.ax.transData)
 			self.ax.add_patch(circle)
-			resIdTxt = f'{resId[:3]}{int(resId[3:])+40}'
-			cirLabel = self.ax.text(circleX, circleY, resIdTxt, color='black', weight='bold', fontsize=8,
+			cirLabel = self.ax.text(circleX, circleY, resId, color='black', weight='bold', fontsize=8,
 															ha='center', va='center', transform=self.ax.transData)
 
 			self.resCircles[resId] = circle
