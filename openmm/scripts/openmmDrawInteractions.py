@@ -241,49 +241,6 @@ def addParallelLabel(ax, x, y, texto, color, distancia=5, offSign=1, **kwargs):
 	return label
 
 
-def flip_molecule_to_canvas(mol, canvas_size):
-	"""
-    Voltea la molécula y la escala para que quepa exactamente en el canvas.
-    """
-	conf = mol.GetConformer()
-	num_atoms = mol.GetNumAtoms()
-
-	# Obtener coordenadas actuales
-	coords = [(conf.GetAtomPosition(i).x, conf.GetAtomPosition(i).y)
-			  for i in range(num_atoms)]
-
-	# Encontrar límites
-	xs = [c[0] for c in coords]
-	ys = [c[1] for c in coords]
-	min_x, max_x = min(xs), max(xs)
-	min_y, max_y = min(ys), max(ys)
-
-	# Calcular escala para que quepa en canvas_size
-	width = max_x - min_x
-	height = max_y - min_y
-
-	# Si el ancho o alto es cero, evitar división por cero
-	if width == 0: width = 1
-	if height == 0: height = 1
-
-	scale = canvas_size / max(width, height)
-
-	# Centrar y volter
-	center_x = (min_x + max_x) / 2
-	center_y = (min_y + max_y) / 2
-
-	for i in range(num_atoms):
-		pos = conf.GetAtomPosition(i)
-		# Escalar y centrar
-		x = (pos.x - center_x) * scale + canvas_size / 2
-		y = (pos.y - center_y) * scale + canvas_size / 2
-		# Aplicar flip vertical
-		y = canvas_size - y
-		conf.SetAtomPosition(i, (x, y, pos.z))
-
-	return mol
-
-
 class MoleculeInteractions:
 	'''Main object to draw a molecule and its interacting residues, obtained from OpenMMDL.
 	The residues are placed surrounding the moelcule, next to their interacting atoms, but their positions can be 
