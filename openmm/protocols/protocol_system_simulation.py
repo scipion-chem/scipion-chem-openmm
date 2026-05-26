@@ -597,14 +597,13 @@ class ProtOpenMMSystemSimulation(EMProtocol):
     def cleanOutputPdb(self, pdbFile):
         name = os.path.splitext(os.path.basename(pdbFile))[0]
         name = name.split('_')[0]
-        systemPath = os.path.dirname(pdbFile)
 
         paramsFile = self._getExtraPath('strip_params.txt')
         outPrefix = self._getPath(f'{name}_clean')
         with open(paramsFile, 'w') as f:
             f.write(f'pdbIn :: {os.path.abspath(pdbFile)}\n')
             f.write(f'outPrefix :: {os.path.abspath(outPrefix)}\n')
-            f.write(f'keepIons :: False\n')
+            f.write('keepIons :: False\n')
 
         Plugin.runScript(self, 'stripWater.py', args=os.path.abspath(paramsFile), env=OPENMM_DIC, cwd=self._getPath())
         return f'{outPrefix}.pdb'
