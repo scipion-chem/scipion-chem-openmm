@@ -2,7 +2,9 @@
 	"datasets": ["model_building_tutorial"],
 	"skippable": {
 		"gpu": [
-			
+			"test_openmm.TestOpenMMStripWaters",
+			"test_openmm.TestOpenMMSimulation",
+			"test_openmm.TestOpenMMInteractions"
 		],
 		"dependencies": [
 			
