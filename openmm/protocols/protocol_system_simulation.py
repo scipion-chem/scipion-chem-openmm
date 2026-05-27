@@ -34,6 +34,7 @@ import os
 from pyworkflow.protocol import params
 from pyworkflow.utils import Message
 from pwem.protocols import EMProtocol
+from pwem.objects import AtomStruct
 
 from pwchem import Plugin as pwchemPlugin
 
@@ -488,6 +489,9 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       outSystem = OpenMMSystem(filename=outPdbFile, serieFile=systemFile, cifFile=outCifFile,
                                repFile=self._getPath('md_log.txt'), topoFile=topoFile,
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
+
+      cleanPdb = self.cleanOutputPdb(outPdbFile)
+      finalAtomStruct = AtomStruct(filename=cleanPdb)
       outSystem.setTrajectoryFile(outDcdFile)
 
       ligFile = self.inputSystem.get().getLigTopologyFile()
@@ -498,7 +502,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       if os.path.exists(anaDir):
         outSystem.setOpenmmdlDir(anaDir)
 
-      self._defineOutputs(outputSystem=outSystem)
+      self._defineOutputs(outputSystem=outSystem, lastFrameStruct=finalAtomStruct)
 
 
     def _warnings(self):
@@ -589,4 +593,18 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                 paramsDict[key] = self.parseValue(value)
 
         return paramsDict
+
+    def cleanOutputPdb(self, pdbFile):
+        name = os.path.splitext(os.path.basename(pdbFile))[0]
+        name = name.split('_')[0]
+
+        paramsFile = self._getExtraPath('strip_params.txt')
+        outPrefix = self._getPath(f'{name}_clean')
+        with open(paramsFile, 'w') as f:
+            f.write(f'pdbIn :: {os.path.abspath(pdbFile)}\n')
+            f.write(f'outPrefix :: {os.path.abspath(outPrefix)}\n')
+            f.write('keepIons :: False\n')
+
+        Plugin.runScript(self, 'stripWater.py', args=os.path.abspath(paramsFile), env=OPENMM_DIC, cwd=self._getPath())
+        return f'{outPrefix}.pdb'
 

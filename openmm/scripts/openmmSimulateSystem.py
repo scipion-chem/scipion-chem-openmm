@@ -82,6 +82,9 @@ if __name__ == "__main__":
 		simulation.minimizeEnergy(tolerance=float(pDic['minimTol'])*kilojoules_per_mole/nanometer,
 															maxIterations=int(pDic['maxIter']))
 
+	minPositions = simulation.context.getState(getPositions=True).getPositions()
+	PDBFile.writeFile(simulation.topology, minPositions, open(f'{sysName}_minimized.pdb', 'w'))
+
 	# Set up the reporters to report energies every 1000 steps.
 	simulation.reporters.append(DCDReporter(f'{sysName}.dcd', nTraj))
 	simulation.reporters.append(StateDataReporter("md_log.txt", nTraj, step=True,
