@@ -59,13 +59,11 @@ class Plugin(pwchem.Plugin):
         home = cls.getEnvName(OPENMM_DIC)
         # Installing package
         installer.addCommand(
-            f'conda create -n {home} -c conda-forge espaloma=0.4.0 openmm=8.3 cuda-version=12.8 -y ',
-            'OPENMM_ENV_CREATED'
+            f'conda create -n {home} -c conda-forge espaloma=0.4.0 openmm=8.3 cuda-version=12.8 openmmdl=1.2.0 '
+            f'-y ', 'OPENMM_ENV_CREATED'
         ).addCommand(
             f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
             'ESPALOMA_MODEL_DOWNLOADED'
-        ).addCondaPackages(
-            ['openmmdl'], channel='conda-forge'
         ).addCommand(
             f"cd {cls.getVar(OPENMM_DIC['home'])} && git clone https://github.com/openmm/openmm-cph.git",
             'CPH_REPO_CLONED'
