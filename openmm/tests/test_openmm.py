@@ -203,4 +203,7 @@ class TestOpenMMStripWaters(TestOpenMMSimulation):
         self._waitOutput(protInt, 'outputSystem', sleepTime=10)
         self.assertIsNotNone(getattr(protInt, 'outputSystem', None))
 
+    def test2(self):
+        pass
+
 
