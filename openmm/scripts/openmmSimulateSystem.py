@@ -88,7 +88,7 @@ if __name__ == "__main__":
 			with open(chkFile, 'rb') as f:
 				simulation.loadCheckpoint(f)
 
-	elif eval(pDic['addMinimization']):
+	if eval(pDic['addMinimization']) and not os.path.exists(chkFile):
 		print('Running {} minimization steps or until <= {} kJ/mol'.format(pDic['maxIter'], pDic['minimTol']))
 		sys.stdout.flush()
 		simulation.reporters.append(StateDataReporter(sys.stdout, nTraj, step=True,
