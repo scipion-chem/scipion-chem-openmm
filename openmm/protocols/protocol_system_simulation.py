@@ -490,7 +490,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                                repFile=self._getPath('md_log.txt'), topoFile=topoFile,
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
 
-      cleanPdb = self.cleanOutputPdb(outPdbFile)
+      cleanPdb = self.cleanOutput(outCifFile, outDcdFile)
       finalAtomStruct = AtomStruct(filename=cleanPdb)
       outSystem.setTrajectoryFile(outDcdFile)
 
@@ -594,14 +594,15 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
         return paramsDict
 
-    def cleanOutputPdb(self, pdbFile):
-        name = os.path.splitext(os.path.basename(pdbFile))[0]
+    def cleanOutput(self, cifFile, dcdFile):
+        name = os.path.splitext(os.path.basename(cifFile))[0]
         name = name.split('_')[0]
 
         paramsFile = self._getExtraPath('strip_params.txt')
         outPrefix = self._getPath(f'{name}_clean')
         with open(paramsFile, 'w') as f:
-            f.write(f'pdbIn :: {os.path.abspath(pdbFile)}\n')
+            f.write(f'cifIn :: {os.path.abspath(cifFile)}\n')
+            f.write(f'dcdIn :: {os.path.abspath(dcdFile)}\n')
             f.write(f'outPrefix :: {os.path.abspath(outPrefix)}\n')
             f.write('keepIons :: False\n')
 
