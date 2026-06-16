@@ -455,6 +455,9 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         if getattr(self, params.USE_GPU).get():
           f.write(f'gpus :: {getattr(self, params.GPU_LIST)}\n')
 
+        chkFile = self.getChkFile(True)
+        f.write(f'chkFile :: {chkFile}\n')
+
       Plugin.runScript(self, 'openmmSimulateSystem.py', args=self.getParamsFile(), env=OPENMM_DIC,
                              cwd=self._getPath())
 
@@ -468,8 +471,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
         if not os.path.exists(oDir):
           os.mkdir(oDir)
         systemName = self.getSystemName()
-        outTopFile, outDcdFile = os.path.abspath(self._getPath(f'{systemName}.pdb')), \
-                                 os.path.abspath(self._getPath(f'{systemName}.dcd'))
+        outTopFile, outDcdFile = os.path.abspath(self._getPath(f'{systemName}.pdb')), self.getTrajectoryFile(True)
 
         args = f'-t {outTopFile} -d {outDcdFile} -n LIG -c {self.numberOfThreads.get()}'
         pwchemPlugin.runCondaCommand(self, args, OPENMM_DIC, 'openmmdl analysis', cwd=oDir)
@@ -478,7 +480,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
     def createOutputStep(self):
       systemName = self.getSystemName()
       systemFile = os.path.relpath(self.getSystemFile())
-      outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
+      outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self.getTrajectoryFile(False)
 
       topoFile = self.getTopologyFile()
       outCifFile = self._getPath(f'{systemName}.cif')
@@ -504,6 +506,18 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
       self._defineOutputs(outputSystem=outSystem, lastFrameStruct=finalAtomStruct)
 
+
+    def getTrajectoryFile(self, abs=True):
+        trajFile = self._getPath(f'{self.getSystemName()}.dcd')
+        if abs:
+            trajFile = os.path.abspath(trajFile)
+        return trajFile
+
+    def getChkFile(self, abs=True):
+        chkFile = self._getPath(f'{self.getSystemName()}.chk')
+        if abs:
+            chkFile = os.path.abspath(chkFile)
+        return chkFile
 
     def _warnings(self):
       ws = []
