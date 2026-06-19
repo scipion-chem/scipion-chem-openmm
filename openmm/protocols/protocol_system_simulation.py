@@ -402,6 +402,8 @@ class ProtOpenMMSystemSimulation(EMProtocol):
             f.write(f"logFile = {os.path.abspath(logFile)}\n")
             finalPdb = self._getPath(f"{sysName}.pdb")
             f.write(f"finalPdb = {os.path.abspath(finalPdb)}\n")
+            minimizedPdb = self._getPath(f"{sysName}_minimized.pdb")
+            f.write(f"minimizedPdb = {os.path.abspath(minimizedPdb)}\n")
             finalCif = self._getPath(f"{sysName}.cif")
             f.write(f"finalCif = {os.path.abspath(finalCif)}\n")
             f.write(f'systemXml = {self.getSystemFile()}\n')
@@ -493,6 +495,10 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       cleanPdb = self.cleanOutputPdb(outPdbFile)
       finalAtomStruct = AtomStruct(filename=cleanPdb)
       outSystem.setTrajectoryFile(outDcdFile)
+
+      minimizedFile = self._getPath(f'{systemName}_minimized.pdb')
+      if os.path.exists(minimizedFile):
+        outSystem.setMinimizedFile(minimizedFile)
 
       ligFile = self.inputSystem.get().getLigTopologyFile()
       if ligFile:
