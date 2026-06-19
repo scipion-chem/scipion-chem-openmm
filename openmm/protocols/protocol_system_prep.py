@@ -472,7 +472,7 @@ class ProtOpenMMSystemPrep(EMProtocol):
         else:
             molFile = myMol.getPoseFile()
             sdfFile = convertToSdf(self, molFile)
-            paramFile = self.writePrepParamsFile([sdfFile])
+            paramFile = self.writePrepParamsFile([os.path.abspath(sdfFile)])
             pwchemPlugin.runScript(self, scriptLigPrepName, paramFile, env=RDKIT_DIC, cwd=self._getPath())
             return os.path.join(self.getLigandFileDir(), os.listdir(self.getLigandFileDir())[0])
 
