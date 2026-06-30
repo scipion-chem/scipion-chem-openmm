@@ -479,7 +479,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
     def createOutputStep(self):
       systemName = self.getSystemName()
-      systemFile = os.path.relpath(systemName.getSystemFile())
+      systemFile = os.path.relpath(self.getSystemFile())
       serieFile = os.path.relpath(self.getSerieFile())
       outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
 
@@ -542,6 +542,9 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
     def getStructureFile(self):
       return os.path.abspath(self.inputSystem.get().getCifFile())
+
+    def getSystemFile(self):
+        return os.path.abspath(self.inputSystem.get().getSystemFile())
 
     def getSerieFile(self):
       return os.path.abspath(self.inputSystem.get().getSerieFile())
