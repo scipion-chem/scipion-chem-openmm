@@ -489,7 +489,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       mFF, wFF = self.getFFFiles()
       nFrames = self.getNFrames()
       nTime = self.nSteps.get() * self.stepSize.get()
-      outSystem = OpenMMSystem(filename=systemFile, serieFile=systemFile, cifFile=outCifFile,
+      outSystem = OpenMMSystem(filename=systemFile, serieFile=serieFile, cifFile=outCifFile,
                                repFile=self._getPath('md_log.txt'), topoFile=topoFile,
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
 
