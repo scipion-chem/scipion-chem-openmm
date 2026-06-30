@@ -75,10 +75,8 @@ if __name__ == "__main__":
 	if eval(pDic['addMinimization']):
 		print('Running {} minimization steps or until <= {} kJ/mol'.format(pDic['maxIter'], pDic['minimTol']))
 		sys.stdout.flush()
-		simulation.reporters.append(StateDataReporter(sys.stdout, nTraj, step=True,
-																									potentialEnergy=True, temperature=True, volume=True))
-		simulation.reporters.append(StateDataReporter("min_log.txt", nTraj, step=True,
-																									potentialEnergy=True, temperature=True, volume=True))
+		simulation.reporters.append(StateDataReporter(sys.stdout, nTraj, step=True, potentialEnergy=True, temperature=True, volume=True))
+		simulation.reporters.append(StateDataReporter("min_log.txt", nTraj, step=True, potentialEnergy=True, temperature=True, volume=True))
 		simulation.minimizeEnergy(tolerance=float(pDic['minimTol'])*kilojoules_per_mole/nanometer,
 															maxIterations=int(pDic['maxIter']))
 
@@ -87,8 +85,7 @@ if __name__ == "__main__":
 
 	# Set up the reporters to report energies every 1000 steps.
 	simulation.reporters.append(DCDReporter(f'{sysName}.dcd', nTraj))
-	simulation.reporters.append(StateDataReporter("md_log.txt", nTraj, step=True,
-																								potentialEnergy=True, temperature=True, volume=True))
+	simulation.reporters.append(StateDataReporter("md_log.txt", nTraj, step=True, potentialEnergy=True, temperature=True, volume=True))
 	# run simulation
 	print('Running {} steps simulation'.format(pDic['nSteps']))
 	sys.stdout.flush()
