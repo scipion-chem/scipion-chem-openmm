@@ -406,7 +406,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
             f.write(f"minimizedPdb = {os.path.abspath(minimizedPdb)}\n")
             finalCif = self._getPath(f"{sysName}.cif")
             f.write(f"finalCif = {os.path.abspath(finalCif)}\n")
-            f.write(f'systemXml = {self.getSystemFile()}\n')
+            f.write(f'systemXml = {self.getSerieFile()}\n')
 
             # Solvation box etc
             if solvParams.get('boxSize'):
@@ -425,7 +425,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                          cwd=self._getPath())
 
     def simulateStep(self):
-      sysFile, structFile = self.getSystemFile(), self.getStructureFile()
+      sysFile, structFile = self.getSerieFile(), self.getStructureFile()
 
       with open(self.getParamsFile(), 'w') as f:
         f.write(f'systemFile :: {sysFile}\n')
@@ -479,7 +479,8 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
     def createOutputStep(self):
       systemName = self.getSystemName()
-      systemFile = os.path.relpath(self.getSystemFile())
+      systemFile = os.path.relpath(systemName.getSystemFile())
+      serieFile = os.path.relpath(self.getSerieFile())
       outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
 
       topoFile = self.getTopologyFile()
@@ -542,7 +543,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
     def getStructureFile(self):
       return os.path.abspath(self.inputSystem.get().getCifFile())
 
-    def getSystemFile(self):
+    def getSerieFile(self):
       return os.path.abspath(self.inputSystem.get().getSerieFile())
 
     def getSystemName(self):
