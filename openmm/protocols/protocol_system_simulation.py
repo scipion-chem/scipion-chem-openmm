@@ -481,7 +481,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       systemName = self.getSystemName()
       systemFile = os.path.relpath(self.getSystemFile())
       serieFile = os.path.relpath(self.getSerieFile())
-      outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self._getPath(f'{systemName}.dcd')
+      outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self.getTrajectoryFile(False)
 
       topoFile = self.getTopologyFile()
       outCifFile = self._getPath(f'{systemName}.cif')
