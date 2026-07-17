@@ -30,11 +30,17 @@ import sys
 
 # Openmm imports
 from openmm.app import PDBFile, ForceField, Simulation, StateDataReporter,\
-	DCDReporter, NoCutoff, HBonds, PDBxFile
+	DCDReporter, NoCutoff, HBonds, PDBxFile, CheckpointReporter
 from openmm import *
 from openmm.unit import *
 
 from utils import parseParams
+
+def getDoneSteps(statusFile):
+	with open(statusFile, 'r') as file:
+		lines = file.readlines()
+		doneSteps = int(lines[-1].split(',')[0].strip())
+	return doneSteps
 
 if __name__ == "__main__":
 	pDic = parseParams(sys.argv[1], sep='::')
@@ -71,28 +77,45 @@ if __name__ == "__main__":
 
 	simulation = Simulation(pdb.topology, system, integrator, **kwargs)
 	simulation.context.setPositions(pdb.positions)
+	statusFile = "md_log.txt"
 
-	if eval(pDic['addMinimization']):
+	doneSteps = 0
+	if 'chkFile' in pDic:
+		chkFile = pDic['chkFile']
+		if os.path.exists(chkFile):
+			print("Loading checkpoint...")
+			doneSteps = getDoneSteps(statusFile)
+			with open(chkFile, 'rb') as f:
+				simulation.loadCheckpoint(f)
+
+	if eval(pDic['addMinimization']) and not os.path.exists(chkFile):
 		print('Running {} minimization steps or until <= {} kJ/mol'.format(pDic['maxIter'], pDic['minimTol']))
 		sys.stdout.flush()
 		simulation.reporters.append(StateDataReporter(sys.stdout, nTraj, step=True,
-																									potentialEnergy=True, temperature=True, volume=True))
+													  potentialEnergy=True, temperature=True, volume=True))
 		simulation.reporters.append(StateDataReporter("min_log.txt", nTraj, step=True,
-																									potentialEnergy=True, temperature=True, volume=True))
+													  potentialEnergy=True, temperature=True, volume=True))
 		simulation.minimizeEnergy(tolerance=float(pDic['minimTol'])*kilojoules_per_mole/nanometer,
-															maxIterations=int(pDic['maxIter']))
+								  maxIterations=int(pDic['maxIter']))
 
-	minPositions = simulation.context.getState(getPositions=True).getPositions()
-	PDBFile.writeFile(simulation.topology, minPositions, open(f'{sysName}_minimized.pdb', 'w'))
+		minPositions = simulation.context.getState(getPositions=True).getPositions()
+		PDBFile.writeFile(simulation.topology, minPositions, open(f'{sysName}_minimized.pdb', 'w'))
 
 	# Set up the reporters to report energies every 1000 steps.
-	simulation.reporters.append(DCDReporter(f'{sysName}.dcd', nTraj))
-	simulation.reporters.append(StateDataReporter("md_log.txt", nTraj, step=True,
-																								potentialEnergy=True, temperature=True, volume=True))
+	trjFile = f'{sysName}.dcd'
+	appe = False
+	if os.path.exists(trjFile):
+		appe = True
+	simulation.reporters.append(DCDReporter(trjFile, nTraj, append=appe))
+	simulation.reporters.append(StateDataReporter(statusFile, nTraj, step=True, append=appe,
+												  potentialEnergy=True, temperature=True, volume=True))
+	simulation.reporters.append(CheckpointReporter(chkFile, nTraj))
+
 	# run simulation
-	print('Running {} steps simulation'.format(pDic['nSteps']))
+	todoSteps = int(pDic['nSteps']) - doneSteps
+	print(f'Running {todoSteps} steps simulation')
 	sys.stdout.flush()
-	simulation.step(int(pDic['nSteps']))
+	simulation.step(todoSteps)
 
 	positions = simulation.context.getState(getPositions=True).getPositions()
 	PDBFile.writeFile(simulation.topology, positions, open(f'{sysName}.pdb', 'w'))
