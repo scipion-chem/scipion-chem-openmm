@@ -478,7 +478,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                              cwd=self._getPath())
 
     def getNFrames(self):
-      nFrames = self.nSteps.get() // self.nTraj.get() + 1
+      nFrames = self.nSteps.get() // self.nTraj.get()
       return nFrames
 
     def analyzeStep(self):
