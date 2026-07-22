@@ -39,7 +39,7 @@ class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
     def _runImportPDB(cls):
       protImportPDB = cls.newProtocol(
         ProtImportPdb,
-        inputPdbData=0, pdbId='4erf')
+        inputPdbData=0, pdbId='1f29')
       cls.launchProtocol(protImportPDB)
       cls.protImportPDB = protImportPDB
 
@@ -54,7 +54,7 @@ class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
         else:
             protPrepareS.inputSetOfMols.set(protPrepare)
             protPrepareS.inputSetOfMols.setExtended('outputSmallMolecules')
-            protPrepareS.inputLigand.set('SmallMolecule (g1_4erf_0R3-1_1 molecule)')
+            protPrepareS.inputLigand.set('SmallMolecule (g1_1f29_VS1_300-1_1 molecule)')
 
         cls.launchProtocol(protPrepareS)
         return protPrepareS
@@ -81,7 +81,7 @@ class TestOpenMMSimulation(TestOpenMMPrepareSystem):
   def _runSimulation(cls, protPrepareS):
       protSim = cls.newProtocol(
         ProtOpenMMSystemSimulation,
-        inputSystem=protPrepareS.outputSystem, stepSize=0.002,
+        inputSystem=protPrepareS.outputSystem, stepSize=0.002, residuesToTitrate='ASP, GLU, HIS, LYS',
         maxIter=20, nSteps=10, nTraj=5)
 
       cls.launchProtocol(protSim)
@@ -114,7 +114,7 @@ class TestOpenMMcph(TestOpenMMPrepareSystem):
       protSim = cls.newProtocol(
           ProtOpenMMSystemSimulation,
           inputSystem=protPrepareS.outputSystem,
-          cph=True, singlePH=True, onePH=3.0, stepSize=0.002,
+          cph=True, singlePH=True, onePH=3.0, stepSize=0.002,residuesToTitrate='ASP, GLU, HIS, LYS',
           maxIter=20, nSteps=10, nTraj=5)
 
       cls.launchProtocol(protSim)
