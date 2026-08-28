@@ -419,8 +419,24 @@ class ProtOpenMMSystemSimulation(EMProtocol):
 
     def cphSimulateStep(self):
         paramsFile = self.getParamsFile()
-        Plugin.runScript(self, 'openmmConstantpH.py', args=f'--params {paramsFile}', env=OPENMM_DIC,
-                         cwd=self._getPath())
+
+        gpus = str(getattr(self, params.GPU_LIST).get())
+        oldCuda = os.environ.get("CUDA_VISIBLE_DEVICES")
+        try:
+            os.environ["CUDA_VISIBLE_DEVICES"] = gpus
+
+            Plugin.runScript(
+                self,
+                "openmmConstantpH.py",
+                args=f"--params {paramsFile}",
+                env=OPENMM_DIC,
+                cwd=self._getPath()
+            )
+        finally:
+            if oldCuda is None:
+                os.environ.pop("CUDA_VISIBLE_DEVICES", None)
+            else:
+                os.environ["CUDA_VISIBLE_DEVICES"] = oldCuda
 
     def simulateStep(self):
       sysFile, structFile = self.getSystemFile(), self.getStructureFile()
