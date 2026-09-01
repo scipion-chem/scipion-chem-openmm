@@ -9,4 +9,5 @@ from .protocol_system_simulation import ProtOpenMMSystemSimulation
 from .protocol_openduck_simulation import ProtOpenDuckSimulation
 from .protocol_interaction_energy import ProtOpenMMInteractionEnergy
 from .protocol_system_modification import ProtStripWater
-
+from .protocol_abfe import ProtOpenFEABFE
+from .protocol_rbfe import ProtOpenFERBFE
