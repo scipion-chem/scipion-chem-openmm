@@ -113,9 +113,7 @@ class TestOpenFEABFE(TestExtractLigand):
 
     `test` runs retinal in 1uaz - the same single-ligand system TestGromacsPmxABFE uses. openfe
     handles the whole double-decoupling cycle itself (automatic Boresch restraints, both legs).
-
-    `test2` runs two ligands together: ABFE needs no atom mapping and treats each ligand
-    independently, so a set yields one dG_bind per ligand and no single scalar on the output.
+    The protocol takes ONE ligand (wizard-picked on the form), so there is no multi-ligand test.
 
     preEquilLength is essential to these tests: openfe's per-leg pre-equilibration defaults total
     6.55 ns per repeat (complex 0.25+0.5+5.0, solvent 0.1+0.2+0.5) and are untouched by any
@@ -140,12 +138,13 @@ class TestOpenFEABFE(TestExtractLigand):
         return protImport
 
     @classmethod
-    def _runOpenFEABFE(cls, protExtract, label):
+    def _runOpenFEABFE(cls, protExtract, ligandName, label):
         protABFE = cls.newProtocol(
             ProtOpenFEABFE,
             protocolRepeats=1, productionLength=0.01, equilLength=0.005, preEquilLength=0.01)
         protABFE.inputSetOfMols.set(protExtract)
         protABFE.inputSetOfMols.setExtended('outputSmallMolecules')
+        protABFE.inputLigand.set(ligandName)
         protABFE.setObjLabel(label)
 
         cls.launchProtocol(protABFE)
@@ -155,22 +154,9 @@ class TestOpenFEABFE(TestExtractLigand):
         protExtract = self._runExtractLigand(self.protImportPDB, chainStr)
         self._waitOutput(protExtract, 'outputSmallMolecules')
 
-        protABFE = self._runOpenFEABFE(protExtract, 'openfe - ABFE (1uaz RET)')
+        ligandName = str(next(iter(protExtract.outputSmallMolecules)))
+        protABFE = self._runOpenFEABFE(protExtract, ligandName, 'openfe - ABFE (1uaz RET)')
         self._waitOutput(protABFE, 'outputSystem', sleepTime=10)
         self.assertIsNotNone(getattr(protABFE, 'outputSystem', None))
         # One ligand -> the scalar dG_bind is published on the output.
         self.assertIsNotNone(protABFE.outputSystem.getFreeEnergy())
-
-    def test2(self):
-        """Two ligands -> one dG_bind each, no single scalar on the output."""
-        protImportJNK1 = self._runImportJNK1PDB()
-        self._waitOutput(protImportJNK1, 'outputPdb')
-
-        protExtract = self._runExtractLigand(protImportJNK1, jnk1ChainStr)
-        self._waitOutput(protExtract, 'outputSmallMolecules')
-
-        protABFE = self._runOpenFEABFE(protExtract, 'openfe - ABFE (JNK1, 2 ligands)')
-        self._waitOutput(protABFE, 'outputSystem', sleepTime=10)
-        self.assertIsNotNone(getattr(protABFE, 'outputSystem', None))
-        self.assertEqual(len(protABFE.parseLigandNames()), 2)
-        self.assertIsNone(protABFE.outputSystem.getFreeEnergy())

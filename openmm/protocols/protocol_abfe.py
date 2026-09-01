@@ -26,8 +26,9 @@
 # **************************************************************************
 
 """
-Absolute binding free energy (ABFE) for one or more ligands in a receptor, wrapping Open Free
-Energy's `AbsoluteBindingProtocol`.
+Absolute binding free energy (ABFE) for ONE ligand in a receptor, wrapping Open Free Energy's
+`AbsoluteBindingProtocol`. The ligand is picked from the input set with a wizard - one ABFE
+protocol per ligand, since each is a full 44-window double-decoupling calculation.
 
 openfe handles the whole double-decoupling cycle internally: state A is the ligand bound in the
 solvated complex, state B is the same system with the ligand removed, and the Protocol itself
@@ -38,12 +39,11 @@ electrostatics, decouples Lennard-Jones, samples with Hamiltonian replica exchan
 engine and estimates free energies with MBAR - so this protocol contributes only input
 preparation, settings, execution and result collection.
 
-  1. prepareInputsStep - receptor PDB (pdbfixer) + one multi-molecule ligand SDF, with
+  1. prepareInputsStep - receptor PDB (pdbfixer) + an SDF holding the selected ligand, with
                      hydrogens added.
-  2. setupStep     - openfeSetupABFE.py: charge the ligands, build one Transformation per
-                     ligand, dump one JSON each.
-  3. runAllTransformationsStep - `openfe quickrun` per transformation JSON.
-  4. createOutputStep - read each result's estimate/uncertainty (dG_bind, kcal/mol).
+  2. setupStep     - openfeSetupABFE.py: charge the ligand and build its Transformation JSON.
+  3. runAllTransformationsStep - `openfe quickrun` on that transformation.
+  4. createOutputStep - read the result's estimate/uncertainty (dG_bind, kcal/mol).
 
 Everything not on the form stays at `AbsoluteBindingProtocol.default_settings()` (3 repeats,
 30 complex / 14 solvent lambda windows, 10 ns production per replica).
@@ -81,9 +81,9 @@ class ProtOpenFEABFE(EMProtocol):
     Boresch restraints, electrostatics annihilation + Lennard-Jones decoupling, Hamiltonian
     replica exchange on OpenMM, MBAR analysis.
 
-    Unlike the RBFE protocol this needs no congeneric series and no atom mapping - each ligand is
-    evaluated on its own, so structurally unrelated ligands can be compared. It is however
-    considerably more expensive per ligand.
+    Unlike the RBFE protocol this needs no congeneric series and no atom mapping - a ligand is
+    evaluated on its own, so structurally unrelated ligands can be compared by running one ABFE
+    protocol each. It is however considerably more expensive per ligand.
     """
     _label = 'ABFE (OpenFE absolute binding free energy)'
     stepsExecutionMode = params.STEPS_PARALLEL
@@ -101,9 +101,15 @@ class ProtOpenFEABFE(EMProtocol):
         form.addParam('inputSetOfMols', params.PointerParam, pointerClass='SetOfSmallMolecules',
                       label='Docked molecules: ', allowsNull=False, important=True,
                       help='Set of docked/aligned ligands sharing a common receptor. The receptor '
-                           'is taken from the set itself, so the ligands must already be posed in '
-                           'its binding site (e.g. the output of a docking protocol). Every ligand '
-                           'in the set is evaluated independently - one dG_bind each.')
+                           'is taken from the set itself, so the ligand must already be posed in '
+                           'its binding site (e.g. the output of a docking protocol).')
+        form.addParam('inputLigand', params.StringParam, label='Ligand: ',
+                      help='The single ligand to compute the absolute binding free energy for, '
+                           'picked from the set above with the wizard. ABFE is run for ONE ligand '
+                           'at a time: each one is a full double-decoupling calculation over 44 '
+                           'lambda windows plus per-leg pre-equilibration, so running a whole set '
+                           'in a single protocol would be many GPU-hours with no way to inspect or '
+                           'restart an individual ligand. Add one ABFE protocol per ligand instead.')
 
         form.addSection(label='ABFE settings')
         rGroup = form.addGroup('Boresch restraints')
@@ -201,30 +207,35 @@ class ProtOpenFEABFE(EMProtocol):
     def getLigandsSDF(self):
         return os.path.abspath(self._getExtraPath('ligands.sdf'))
 
-    def prepareInputsStep(self):
-        """Write the receptor PDB and a single multi-molecule SDF of the input ligands - the two
-        inputs the setup script consumes (Chem.SDMolSupplier + ProteinComponent.from_pdb_file).
+    def getSpecifiedMol(self):
+        """The one ligand picked on the form, matched by its string representation - the same
+        lookup ProtOpenMMSystemPrep.getSpecifiedMolFile uses."""
+        for mol in self.inputSetOfMols.get():
+            if mol.__str__() == self.inputLigand.get():
+                return mol.clone()
+        raise ValueError(f'Ligand "{self.inputLigand.get()}" not found in the input set of '
+                         f'molecules')
 
-        Hydrogens are (re)added to every ligand, which is NOT optional for openfe: the OpenFF
-        toolkit builds a full valence model and rejects anything it reads as a radical. A ligand
-        extracted straight from a crystallographic PDB has no hydrogens at all, so every carbon
-        comes back bare and parametrisation dies with "RadicalsNotSupportedError: ... Found 2
-        radical electrons on molecule [C][C]/C([C])=[C]/..." (confirmed on retinal from 1uaz).
-        Ligands that already carry explicit hydrogens are unaffected - rdkit only fills in
-        missing ones."""
+    def prepareInputsStep(self):
+        """Write the receptor PDB and an SDF holding the ONE selected ligand - the two inputs the
+        setup script consumes (Chem.SDMolSupplier + ProteinComponent.from_pdb_file).
+
+        Hydrogens are (re)added, which is NOT optional for openfe: the OpenFF toolkit builds a
+        full valence model and rejects anything it reads as a radical. A ligand extracted straight
+        from a crystallographic PDB has no hydrogens at all, so every carbon comes back bare and
+        parametrisation dies with "RadicalsNotSupportedError: ... Found 2 radical electrons on
+        molecule [C][C]/C([C])=[C]/..." (confirmed on retinal from 1uaz). A ligand that already
+        carries explicit hydrogens is unaffected - rdkit only fills in missing ones."""
         self.getReceptorPDB()
 
-        sdfFiles = []
-        for mol in self.inputSetOfMols.get():
-            mol = mol.clone()
-            molFile = mol.getPoseFile() if mol.getPoseFile() else mol.getFileName()
-            sdfFile = os.path.abspath(convertToSdf(self, os.path.abspath(molFile)))
-            # Not convertToSdf(addHydrogens=True): that flag is skipped entirely when the input is
-            # already an .sdf (the function returns before reaching it), which would silently leave
-            # an unprotonated ligand for exactly the inputs most likely to need it.
-            addHydrogensToMol(self, os.path.dirname(sdfFile), sdfFile)
-            sdfFiles.append(sdfFile)
-        mergeSDFs(sdfFiles, self.getLigandsSDF())
+        mol = self.getSpecifiedMol()
+        molFile = mol.getPoseFile() if mol.getPoseFile() else mol.getFileName()
+        sdfFile = os.path.abspath(convertToSdf(self, os.path.abspath(molFile)))
+        # Not convertToSdf(addHydrogens=True): that flag is skipped entirely when the input is
+        # already an .sdf (the function returns before reaching it), which would silently leave
+        # an unprotonated ligand for exactly the inputs most likely to need it.
+        addHydrogensToMol(self, os.path.dirname(sdfFile), sdfFile)
+        mergeSDFs([sdfFile], self.getLigandsSDF())
 
     # -- setup --------------------------------------------------------------------
     def getTransformDir(self):
@@ -234,7 +245,7 @@ class ProtOpenFEABFE(EMProtocol):
         return os.path.abspath(self._getExtraPath('ligands.txt'))
 
     def setupStep(self):
-        """One openfe Transformation (and JSON) per input ligand."""
+        """One openfe Transformation (and JSON) for the selected ligand."""
         os.makedirs(self.getTransformDir(), exist_ok=True)
         paramsFile = os.path.abspath(self._getExtraPath('abfeSetup.txt'))
         with open(paramsFile, 'w') as f:
@@ -294,7 +305,7 @@ class ProtOpenFEABFE(EMProtocol):
         Plugin.runOpenMM(self, 'openfe quickrun', args, cwd=self.getResultsDir())
 
     def runAllTransformationsStep(self):
-        """`openfe quickrun` per ligand. Sequential: each quickrun already saturates a GPU."""
+        """`openfe quickrun` for the selected ligand's transformation."""
         names = self.getTransformationNames()
         if not names:
             raise RuntimeError('The setup step produced no transformations - check the setup log in '
@@ -382,9 +393,8 @@ class ProtOpenFEABFE(EMProtocol):
 
         outSystem = OpenMMSystem(filename=self.getReceptorPDB())
         outSystem.setFreeEnergyFile(self.getResultsFile())
-        # Single scalar only when exactly one ligand was requested - keyed on the requested count,
-        # not the surviving one, so a mostly-failed multi-ligand run cannot publish one survivor as
-        # if it were the whole answer.
+        # Exactly one ligand by construction, so publish its dG_bind as the scalar - but only if
+        # it actually produced a result (a failed quickrun leaves nothing to report).
         if nLigands == 1 and results:
             outSystem.setFreeEnergy(list(results.values())[0][0])
         self._defineOutputs(outputSystem=outSystem)
@@ -399,6 +409,9 @@ class ProtOpenFEABFE(EMProtocol):
                           'ligands posed in the receptor\'s binding site.')
         if self.protocolRepeats.get() < 1:
             errors.append('Independent repeats must be at least 1.')
+        if mols is not None and self.inputLigand.get() not in [m.__str__() for m in mols]:
+            errors.append(f'Ligand "{self.inputLigand.get()}" not found in the input set of '
+                          f'molecules - pick one with the wizard.')
         if self.hostMinDistance.get() >= self.hostMaxDistance.get():
             errors.append('The host anchor min distance must be smaller than the max distance.')
         if self.solventPadding.get() < MIN_SOLVENT_PADDING:
@@ -421,17 +434,14 @@ class ProtOpenFEABFE(EMProtocol):
                      'openfe reports an uncertainty of exactly 0 - which means "no estimate", not '
                      '"exact".')
 
-        mols = self.inputSetOfMols.get()
-        nLig = len(mols) if mols is not None else 0
-        if nLig:
-            preEquil = (3 * self.preEquilLength.get() * 2 if self.preEquilLength.get() > 0
-                        else 6.55)
-            ns = nLig * self.protocolRepeats.get() * (44 * self.productionLength.get() + preEquil)
-            ws.append(f'{nLig} ligand(s) x {self.protocolRepeats.get()} repeat(s), each a full '
-                     f'double-decoupling calculation over 30 complex + 14 solvent lambda windows, '
-                     f'plus ~{preEquil:.2f} ns of per-leg pre-equilibration: roughly {ns:.0f} ns of '
-                     f'GPU MD in total. Absolute binding free energy is far more expensive than the '
-                     f'relative (RBFE) protocol - if your ligands share a scaffold, prefer RBFE.')
+        preEquil = (3 * self.preEquilLength.get() * 2 if self.preEquilLength.get() > 0
+                    else 6.55)
+        ns = self.protocolRepeats.get() * (44 * self.productionLength.get() + preEquil)
+        ws.append(f'One ligand x {self.protocolRepeats.get()} repeat(s): a full double-decoupling '
+                 f'calculation over 30 complex + 14 solvent lambda windows, plus ~{preEquil:.2f} ns '
+                 f'of per-leg pre-equilibration - roughly {ns:.0f} ns of GPU MD. Absolute binding '
+                 f'free energy is far more expensive than the relative (RBFE) protocol; if your '
+                 f'ligands share a scaffold, prefer RBFE.')
         ws.append('The OpenFE ABFE protocol was not part of the Baumann et al. 2026 benchmark (that '
                  'study evaluated the RBFE protocol only), so there are no published accuracy '
                  'statistics backing it the way there are for RBFE.')
