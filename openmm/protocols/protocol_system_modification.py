@@ -123,15 +123,15 @@ class ProtStripWater(EMProtocol):
         self._insertFunctionStep("createOutputStep")
 
     def stripStep(self):
-        pdbFile = self.inputSystem.get().getFileName()
-        name = os.path.splitext(os.path.basename(pdbFile))[0]
-        systemPath = os.path.dirname(pdbFile)
+        cifFile = self.inputSystem.get().getCifFile()
+        name = os.path.splitext(os.path.basename(cifFile))[0]
+        systemPath = os.path.dirname(cifFile)
         dcdIn = os.path.join(systemPath, f"{name}.dcd")
 
         paramsFile = self._getExtraPath('strip_params.txt')
         outPrefix = self._getPath(f'{name}_clean')
         with open(paramsFile, 'w') as f:
-            f.write(f'pdbIn :: {os.path.abspath(pdbFile)}\n')
+            f.write(f'cifIn :: {os.path.abspath(cifFile)}\n')
             f.write(f'dcdIn :: {os.path.abspath(dcdIn)}\n')
             f.write(f'outPrefix :: {os.path.abspath(outPrefix)}\n')
             f.write(f'keepIons :: {self.keepIons.get()}\n')
@@ -139,8 +139,8 @@ class ProtStripWater(EMProtocol):
         Plugin.runScript(self, 'stripWater.py', args=os.path.abspath(paramsFile), env=OPENMM_DIC, cwd=self._getPath())
 
     def createOutputStep(self):
-        pdbFile = self.inputSystem.get().getFileName()
-        name = os.path.splitext(os.path.basename(pdbFile))[0]
+        cifFile = self.inputSystem.get().getCifFile()
+        name = os.path.splitext(os.path.basename(cifFile))[0]
         suffix = '_clean'
         outPdb = self._getPath(f'{name}{suffix}.pdb')
         outDcd = self._getPath(f'{name}{suffix}.dcd')
