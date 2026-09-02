@@ -402,9 +402,11 @@ class ProtOpenMMSystemSimulation(EMProtocol):
             f.write(f"logFile = {os.path.abspath(logFile)}\n")
             finalPdb = self._getPath(f"{sysName}.pdb")
             f.write(f"finalPdb = {os.path.abspath(finalPdb)}\n")
+            minimizedPdb = self._getPath(f"{sysName}_minimized.pdb")
+            f.write(f"minimizedPdb = {os.path.abspath(minimizedPdb)}\n")
             finalCif = self._getPath(f"{sysName}.cif")
             f.write(f"finalCif = {os.path.abspath(finalCif)}\n")
-            f.write(f'systemXml = {self.getSystemFile()}\n')
+            f.write(f'systemXml = {self.getSerieFile()}\n')
 
             # Solvation box etc
             if solvParams.get('boxSize'):
@@ -423,7 +425,7 @@ class ProtOpenMMSystemSimulation(EMProtocol):
                          cwd=self._getPath())
 
     def simulateStep(self):
-      sysFile, structFile = self.getSystemFile(), self.getStructureFile()
+      sysFile, structFile = self.getSerieFile(), self.getStructureFile()
 
       with open(self.getParamsFile(), 'w') as f:
         f.write(f'systemFile :: {sysFile}\n')
@@ -480,21 +482,25 @@ class ProtOpenMMSystemSimulation(EMProtocol):
     def createOutputStep(self):
       systemName = self.getSystemName()
       systemFile = os.path.relpath(self.getSystemFile())
-      outPdbFile, outDcdFile = self._getPath(f'{systemName}.pdb'), self.getTrajectoryFile(False)
+      serieFile = os.path.relpath(self.getSerieFile())
+      outCifFile, outDcdFile = self._getPath(f'{systemName}.cif'), self.getTrajectoryFile(False)
 
       topoFile = self.getTopologyFile()
-      outCifFile = self._getPath(f'{systemName}.cif')
 
       mFF, wFF = self.getFFFiles()
       nFrames = self.getNFrames()
       nTime = self.nSteps.get() * self.stepSize.get()
-      outSystem = OpenMMSystem(filename=outPdbFile, serieFile=systemFile, cifFile=outCifFile,
+      outSystem = OpenMMSystem(filename=systemFile, serieFile=serieFile, cifFile=outCifFile,
                                repFile=self._getPath('md_log.txt'), topoFile=topoFile,
                                ff=mFF, wff=wFF, nFrames=nFrames, nTime=nTime)
 
       cleanPdb = self.cleanOutput(outCifFile, outDcdFile)
       finalAtomStruct = AtomStruct(filename=cleanPdb)
       outSystem.setTrajectoryFile(outDcdFile)
+
+      minimizedFile = self._getPath(f'{systemName}_minimized.pdb')
+      if os.path.exists(minimizedFile):
+        outSystem.setMinimizedFile(minimizedFile)
 
       ligFile = self.inputSystem.get().getLigTopologyFile()
       if ligFile:
@@ -551,6 +557,9 @@ class ProtOpenMMSystemSimulation(EMProtocol):
       return os.path.abspath(self.inputSystem.get().getCifFile())
 
     def getSystemFile(self):
+        return os.path.abspath(self.inputSystem.get().getSystemFile())
+
+    def getSerieFile(self):
       return os.path.abspath(self.inputSystem.get().getSerieFile())
 
     def getSystemName(self):

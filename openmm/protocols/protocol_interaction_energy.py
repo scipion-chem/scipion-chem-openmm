@@ -231,7 +231,7 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep, ProtOpenMMSystemSimulati
             else:
                 oDir = self._getPath()
 
-            sysFile, structFile = self.getSystemFile(molFile), self.getStructureFile(molFile)
+            sysFile, structFile = self.getSerieFile(molFile), self.getStructureFile(molFile)
             trajFile = self.getSystemTrajFile()
 
             paramsFile = self.getInteractionParamsFile(oDir)
@@ -326,7 +326,7 @@ class ProtOpenMMInteractionEnergy(ProtOpenMMSystemPrep, ProtOpenMMSystemSimulati
           sysFile = os.path.abspath(self._getExtraPath(f'{molBase}/{self.getSystemName()}_system.cif'))
       return sysFile
 
-    def getSystemFile(self, molFile=None):
+    def getSerieFile(self, molFile=None):
       if not molFile:
           sysFile = os.path.abspath(self.inputSystem.get().getSerieFile())
       else:
