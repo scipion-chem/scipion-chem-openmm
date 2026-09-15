@@ -32,7 +32,7 @@ from pwchem.tests import TestPrepareReceptor, TestExtractLigand
 from ..protocols import ProtOpenMMSystemPrep, ProtOpenMMSystemSimulation, ProtOpenMMInteractionEnergy, ProtStripWater
 
 STRUCTURE, LIGAND = 0, 1
-chainStr = '{"model": 0, "chain": "C", "residues": 141}'
+chainStr = '{"model": 0, "chain": "C", "residues": 93}'
 
 class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
     @classmethod

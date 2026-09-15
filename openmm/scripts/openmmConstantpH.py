@@ -376,6 +376,14 @@ def runConstantPhSimulation(params):
         )
         print("[run] Minimization finished.")
 
+        # Save the minimized structure so it can be used as an MDTraj analysis reference
+        minimizedPdb = params.get('minimizedPdb')
+        if minimizedPdb:
+            minState = cph.simulation.context.getState(getPositions=True)
+            with open(minimizedPdb, "w") as f:
+                PDBFile.writeFile(cph.simulation.topology, minState.getPositions(), f)
+            print("[run] Minimized snapshot written.")
+
     nSteps = params['nSteps']
     equilSteps = params.get('equilSteps', nSteps // 10)
     prodSteps = nSteps - equilSteps
