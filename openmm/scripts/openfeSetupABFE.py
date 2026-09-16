@@ -40,27 +40,18 @@ def loadChargedLigands(sdfFile, chargeMethod):
 
 
 def buildSettings(pDic):
-  """Apply the handful of exposed settings onto AbsoluteBindingProtocol's defaults.
+  """Apply the exposed settings onto AbsoluteBindingProtocol's defaults.
 
-  Field names were confirmed by introspecting the installed openfe. Note this protocol keeps
-  SEPARATE settings blocks per leg (complex_* and solvent_*) rather than the single shared
-  blocks the RBFE protocol has, so padding/equilibration/production are applied to each.
-  Accessed directly rather than through getattr(..., None) guards: a guard would silently leave
-  the default in place if a field were renamed upstream, which is exactly how a wrong lambda
-  schedule slipped through in the RBFE script.
+  This protocol keeps SEPARATE blocks per leg (complex_* / solvent_*), so each gets its own
+  padding/equilibration/production. Fields are accessed directly, not through getattr guards: a
+  guard would silently keep the default if a name changed upstream.
 
-  The lambda schedules are deliberately NOT touched: complex_lambda_settings /
-  solvent_lambda_settings hold parallel LISTS (lambda_elec / lambda_vdw / lambda_restraints, 30
-  and 14 entries respectively) that must stay the same length as their leg's n_replicas, so the
-  window count is not a safe single-number knob the way it is for RBFE.
+  The lambda schedules are deliberately untouched - they are parallel LISTS whose length must
+  match the leg's n_replicas, so windows are not a safe single-number knob as in RBFE.
 
-  One deliberate deviation from openfe's defaults: openfe pads the two legs DIFFERENTLY (1.0 nm
-  for the complex, whose box is dominated by the protein, and 1.5 nm for the ligand-alone
-  solvent leg), whereas the form exposes a single "solvent padding" applied to both. The single
-  knob is kept for simplicity and is safe - the value must be >=1.3 nm anyway, see
-  the protocol's own _validate - but it does mean the complex leg is solvated more generously than
-  openfe would, i.e. more water and a slower run, which matters here because ABFE's complex leg
-  already has 30 lambda windows."""
+  One deviation from openfe: it pads the legs differently (1.0 nm complex, 1.5 nm solvent) while
+  the form exposes one value for both. Safe (the floor is 1.3 nm anyway), but it does solvate
+  the complex leg more generously, i.e. more water over 30 windows."""
   settings = AbsoluteBindingProtocol.default_settings()
   settings.protocol_repeats = int(pDic['protocolRepeats'])
   settings.forcefield_settings.small_molecule_forcefield = pDic['smallMolFF']
@@ -90,26 +81,22 @@ def buildSettings(pDic):
     # See ensureEnoughSamples: too few MBAR samples hangs pymbar rather than just being noisy.
     ensureEnoughSamples(simSettings)
 
-    # The per-leg plain-MD pre-equilibration that runs BEFORE any alchemical window. openfe's
-    # defaults total 6.55 ns across the two legs (complex 0.25+0.5+5.0, solvent 0.1+0.2+0.5),
-    # which is hours on a workstation GPU and is untouched by any of the window settings above -
-    # so a short smoke run has to shrink it explicitly or it dominates everything.
+    # Plain-MD pre-equilibration, before any alchemical window. openfe's defaults total 6.55 ns
+    # per repeat and no window setting touches them, so a short run must shrink this explicitly.
     equilSettings = getattr(settings, f'{prefix}_equil_simulation_settings')
     equilSettings.minimization_steps = minSteps
     if preEquil > 0:
       equilSettings.equilibration_length_nvt = preEquil * unit.nanosecond
       equilSettings.equilibration_length = preEquil * unit.nanosecond
       equilSettings.production_length = preEquil * unit.nanosecond
-      # The complex leg picks its Boresch anchors from the RMSF over this trajectory, so a
-      # shortened pre-equilibration must also write frames more often or it writes NONE - see
-      # ensureTrajectoryFrames for the 0-byte-xtc failure this prevents.
+      # Boresch anchors come from the RMSF over this trajectory, so a shortened pre-equilibration
+      # must write frames more often or it writes none at all.
       ensureTrajectoryFrames(equilSettings, getattr(settings, f'{prefix}_equil_output_settings'))
   return settings
 
 
 def safeName(name, index):
-  """File-name-safe transformation id. Ligand names can contain spaces/slashes/parentheses
-  (they come from docking output), which would break the JSON path and the quickrun call."""
+  """File-name-safe transformation id: docking-derived names may contain spaces or slashes."""
   cleaned = ''.join(c if c.isalnum() or c in '-_' else '_' for c in name)
   return f'lig{index}_{cleaned}' if cleaned else f'lig{index}'
 

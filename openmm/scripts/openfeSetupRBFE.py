@@ -29,8 +29,6 @@ def loadChargedLigands(sdfFile, chargeMethod):
   if len(ligands) < 2:
     raise ValueError(f'Need at least 2 readable ligands in {sdfFile}, got {len(ligands)}')
 
-  # Charge once per ligand and reuse everywhere (the paper's approach: avoids the
-  # conformer-dependent charge irreproducibility of charging per-transformation).
   backend = 'openeye' if chargeMethod == 'am1bccelf10' else 'ambertools'
   cSettings = OpenFFPartialChargeSettings(partial_charge_method=chargeMethod,
                                          off_toolkit_backend=backend)
@@ -52,13 +50,7 @@ def buildMapper(pDic):
 
 
 def buildSettings(pDic):
-  """Apply the handful of exposed settings onto RelativeHybridTopologyProtocol's defaults.
-
-  Attributes are set DIRECTLY, never via hasattr/getattr guards: a guard silently skips a
-  misspelled field and leaves the default in place, which is how an earlier version of this
-  function shipped a wrong lambda schedule ('lambda_elec_windows' does not exist on the RFE
-  LambdaSettings - the field is 'lambda_windows'). Field names below were confirmed by
-  introspecting the installed openfe, not read off the docs."""
+  """Apply settings onto RelativeHybridTopologyProtocol's defaults"""
   settings = RelativeHybridTopologyProtocol.default_settings()
   settings.protocol_repeats = int(pDic['protocolRepeats'])
   settings.forcefield_settings.small_molecule_forcefield = pDic['smallMolFF']
@@ -74,9 +66,7 @@ def buildSettings(pDic):
     # Optional[list[int]] - a bare int is rejected by openfe's pydantic validation.
     settings.engine_settings.gpu_device_index = [int(i) for i in pDic['gpuIndex'].split()]
 
-  # These two MUST be set together: openfe's own _validate rejects the protocol outright with
-  # "Number of replicas in simulation_settings: N must equal the number of lambda windows in
-  # lambda_settings: M" if they disagree.
+  # These two MUST be set together
   nWindows = int(pDic['nReplicas'])
   settings.lambda_settings.lambda_windows = nWindows
   settings.simulation_settings.n_replicas = nWindows
@@ -101,6 +91,10 @@ if __name__ == '__main__':
 
     with open(pDic['networkFile'], 'w') as f:
       f.write(network.to_graphml())
+
+    # The ligand names openfe will use, in SDF order
+    with open(pDic['ligandsFile'], 'w') as f:
+      f.write('\n'.join(f'lig{i} :: {ligand.name}' for i, ligand in enumerate(ligands)) + '\n')
 
     protocol = RelativeHybridTopologyProtocol(buildSettings(pDic))
     transformDir = pDic['transformDir']
