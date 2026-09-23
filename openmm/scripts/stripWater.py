@@ -3,7 +3,7 @@
 """
 strip_water.py
 Reads a params file with keys:
-  pdbIn :: /path/to/pdb
+  cifIn :: /path/to/pdb
   dcdIn :: /path/to/dcd   (may be empty)
   outPrefix :: /path/prefix
   keepIons :: True/False
@@ -15,6 +15,8 @@ Produces:
 import sys
 import os
 import mdtraj as md
+import MDAnalysis as mda
+from openmm.app import PDBxFile
 
 def readParams(path):
     d = {}
@@ -27,37 +29,29 @@ def readParams(path):
 
 def main(paramsPath):
     params = readParams(paramsPath)
-    pdbIn = params.get('pdbIn','')
+    cifIn = params.get('cifIn','')
     dcdIn = params.get('dcdIn','').strip()
     outPrefix = params.get('outPrefix','systemNowater')
     keepIons = params.get('keepIons','True').lower() in ('1','true','yes')
 
-    if not os.path.exists(pdbIn):
-        print("ERROR: pdbIn not found:", pdbIn)
+    if not os.path.exists(cifIn):
+        print("ERROR: cifIn not found:", cifIn)
         sys.exit(1)
 
     # load pdb
-    topo = md.load_pdb(pdbIn)
+    cifObj = PDBxFile(cifIn)
+    u = mda.Universe(cifObj.topology, dcdIn, topology_format='OPENMMTOPOLOGY')
+    solvent = {'HOH', 'WAT', 'TIP3', 'TIP4', 'TIP5', 'SOL', 'SPC', 'SPCE'}
+    if not keepIons:
+        solvent = solvent.union({'NA', 'CL', 'K', 'MG', 'CA'})
+    not_solvent = u.select_atoms(f"not resname {' '.join(solvent)}")
+    print(f"Kept {not_solvent.n_atoms} atoms (removed ~{(u.atoms.n_atoms - not_solvent.n_atoms)} solvent atoms)")
 
-    # do selection on PDB topology
-    notWater = topo.topology.select("not water") if keepIons else topo.topology.select("not water and not element Na and not element Cl and not element K and not element Mg and not element Ca")
+    with mda.Writer(f"{outPrefix}.dcd", not_solvent.n_atoms) as W:
+        for ts in u.trajectory:
+            W.write(not_solvent)
 
-    # save new pdb (first frame)
-    pdbOut = f"{outPrefix}.pdb"
-    topo.atom_slice(notWater)[0].save_pdb(pdbOut)
-    print("Saved:", pdbOut)
-
-    # if DCD provided, process it
-    if dcdIn and os.path.exists(dcdIn):
-        print("Loading DCD:", dcdIn)
-        traj = md.load_dcd(dcdIn, top=pdbIn)  # use original pdb top to map indices
-        print("Slicing trajectory (removing water)...")
-        trajNow = traj.atom_slice(notWater)
-        dcdOut = f"{outPrefix}.dcd"
-        trajNow.save_dcd(dcdOut)
-        print("Saved:", dcdOut)
-    else:
-        print("No DCD input provided or DCD missing; only generated PDB.")
+    not_solvent.write(f"{outPrefix}.pdb")
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
