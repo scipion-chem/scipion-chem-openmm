@@ -1,3 +1,29 @@
+# -*- coding: utf-8 -*-
+# **************************************************************************
+# *
+# * Authors:     Joaquin Algorta (joaquin.algorta@cnb.csic.es)
+# *
+# * Biocomputing Unit, CNB-CSIC
+# *
+# * This program is free software; you can redistribute it and/or modify
+# * it under the terms of the GNU General Public License as published by
+# * the Free Software Foundation; either version 2 of the License, or
+# * (at your option) any later version.
+# *
+# * This program is distributed in the hope that it will be useful,
+# * but WITHOUT ANY WARRANTY; without even the implied warranty of
+# * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# * GNU General Public License for more details.
+# *
+# * You should have received a copy of the GNU General Public License
+# * along with this program; if not, write to the Free Software
+# * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+# * 02111-1307  USA
+# *
+# *  All comments concerning this program package may be sent to the
+# *  e-mail address 'scipion@cnb.csic.es'
+# *
+# **************************************************************************
 
 import os
 import json
@@ -50,39 +76,6 @@ class ProtOpenFERBFE(EMProtocol):
                       label='Docked molecules: ', allowsNull=False, important=True,
                       help='Set of docked molecules sharing a common receptor, which is taken '
                            'from the set itself. At least 2 are needed - use ABFE for one ligand.')
-
-        form.addSection(label='RBFE settings')
-        nGroup = form.addGroup('Alchemical network')
-        nGroup.addParam('atomMapper', params.EnumParam, default=0, choices=MAPPERS,
-                        display=params.EnumParam.DISPLAY_HLIST, label='Atom mapper: ',
-                        help='LOMAP: maximum-common-substructure mapping. Kartograf: '
-                             '3D-geometry-based - maps atoms LOMAP will not, but is sensitive to '
-                             'how well the input poses are aligned.')
-        nGroup.addParam('max3d', params.FloatParam, default=1.0, expertLevel=params.LEVEL_ADVANCED,
-                        label='Max 3D distance (A): ',
-                        help='Atoms further apart than this in the input poses are not mapped.')
-        nGroup.addParam('elementChange', params.BooleanParam, default=False,
-                        expertLevel=params.LEVEL_ADVANCED, label='Allow element changes: ',
-                        help='Whether the mapper may map atoms of different elements onto each other.')
-
-        sGroup = form.addGroup('Sampling')
-        sGroup.addParam('nReplicas', params.IntParam, default=DEFAULT_RBFE_N_REPLICAS,
-                        label='Lambda windows: ',
-                        help='Lambda windows, sampled with Hamiltonian replica exchange. 11 for '
-                             'neutral transformations, 22 for charge-changing ones. A CORRECTNESS '
-                             'parameter, not a cost knob - see this protocol\'s warnings before '
-                             'lowering it.')
-        sGroup.addParam('productionLength', params.FloatParam, default=DEFAULT_RBFE_PRODUCTION,
-                        label='Production per window (ns): ',
-                        help='Production length per window. 5 ns is the default for neutral '
-                             'transformations, and results are ~converged by 80% of that. This IS '
-                             'the cost knob - lower it rather than the window count.')
-        sGroup.addParam('minimizationSteps', params.IntParam, default=DEFAULT_MINIMIZATION_STEPS,
-                        expertLevel=params.LEVEL_ADVANCED, label='Minimization steps per window: ',
-                        help='Minimization steps applied to every lambda window. NOT a safe way '
-                             'to shorten a run: at 100 steps a freshly-solvated system still '
-                             'clashes and the first MD dies. Cut sampling time instead.')
-
         gGroup = form.addGroup('Force field and thermodynamics')
         gGroup.addParam('smallMolFF', params.EnumParam, default=0, choices=SMALL_MOL_FFS,
                         label='Small molecule force field: ',
@@ -102,12 +95,44 @@ class ProtOpenFERBFE(EMProtocol):
                              'box. Do not lower below ~1.3 nm: that box\'s c.z component is only '
                              '0.7071 of its length, so a smaller pad makes the half-box shorter '
                              'than OpenMM\'s 0.9 nm nonbonded cutoff and the solvent leg dies.')
-        gGroup.addParam('protocolRepeats', params.IntParam, default=DEFAULT_PROTOCOL_REPEATS,
+
+        form.addSection(label='RBFE settings')
+        nGroup = form.addGroup('Alchemical network')
+        nGroup.addParam('atomMapper', params.EnumParam, default=0, choices=MAPPERS,
+                        display=params.EnumParam.DISPLAY_HLIST, label='Atom mapper: ',
+                        help='LOMAP: maximum-common-substructure mapping. Kartograf: '
+                             '3D-geometry-based - maps atoms LOMAP will not, but is sensitive to '
+                             'how well the input poses are aligned.')
+        nGroup.addParam('max3d', params.FloatParam, default=1.0, expertLevel=params.LEVEL_ADVANCED,
+                        label='Max 3D distance (A): ',
+                        help='Atoms further apart than this in the input poses are not mapped.')
+        nGroup.addParam('elementChange', params.BooleanParam, default=False,
+                        expertLevel=params.LEVEL_ADVANCED, label='Allow element changes: ',
+                        help='Whether the mapper may map atoms of different elements onto each other.')
+
+        sGroup = form.addGroup('Sampling')
+        sGroup.addParam('protocolRepeats', params.IntParam, default=DEFAULT_PROTOCOL_REPEATS,
                         label='Independent repeats: ',
                         help='Independent replicas of each transformation, differing only in '
                              'initial velocities, averaged into the final estimate. With 1 repeat '
                              'openfe reports an uncertainty of exactly 0, meaning "no estimate".')
-        gGroup.addParam('equilLength', params.FloatParam, default=DEFAULT_EQUIL_LENGTH,
+        sGroup.addParam('nReplicas', params.IntParam, default=DEFAULT_RBFE_N_REPLICAS,
+                        label='Lambda windows: ',
+                        help='Lambda windows, sampled with Hamiltonian replica exchange. 11 for '
+                             'neutral transformations, 22 for charge-changing ones. A CORRECTNESS '
+                             'parameter, not a cost knob - see this protocol\'s warnings before '
+                             'lowering it.')
+        sGroup.addParam('productionLength', params.FloatParam, default=DEFAULT_RBFE_PRODUCTION,
+                        label='Production per window (ns): ',
+                        help='Production length per window. 5 ns is the default for neutral '
+                             'transformations, and results are ~converged by 80% of that. This IS '
+                             'the cost knob - lower it rather than the window count.')
+        sGroup.addParam('minimizationSteps', params.IntParam, default=DEFAULT_MINIMIZATION_STEPS,
+                        expertLevel=params.LEVEL_ADVANCED, label='Minimization steps per window: ',
+                        help='Minimization steps applied to every lambda window. NOT a safe way '
+                             'to shorten a run: at 100 steps a freshly-solvated system still '
+                             'clashes and the first MD dies. Cut sampling time instead.')
+        sGroup.addParam('equilLength', params.FloatParam, default=DEFAULT_EQUIL_LENGTH,
                         expertLevel=params.LEVEL_ADVANCED, label='Equilibration per window (ns): ',
                         help='Equilibration length, per lambda window.')
 

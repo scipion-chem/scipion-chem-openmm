@@ -78,40 +78,6 @@ class ProtOpenFEABFE(EMProtocol):
         form.addParam('inputLigand', params.StringParam, label='Ligand: ',
                       help='The single molecule to compute the absolute binding free energy for, '
                            'picked from the set above with the wizard.')
-
-        form.addSection(label='ABFE settings')
-        rGroup = form.addGroup('Boresch restraints')
-        rGroup.addParam('hostMinDistance', params.FloatParam, default=0.5,
-                        label='Host anchor min distance (nm): ',
-                        help='The closest a receptor atom may be to the ligand to be considered as a Boresch restraint '
-                             'anchor. openfe picks the actual anchor atoms itself within this shell, '
-                             'using RMSF, secondary structure and distance heuristics.')
-        rGroup.addParam('hostMaxDistance', params.FloatParam, default=1.5,
-                        label='Host anchor max distance (nm): ',
-                        help='The furthest a receptor atom may be to be considered as a restraint anchor.')
-
-        sGroup = form.addGroup('Sampling')
-        sGroup.addParam('productionLength', params.FloatParam, default=10.0,
-                        label='Production per window (ns): ',
-                        help='Production length for both legs. '
-                             'openfe\'s ABFE default is 10 ns per replica, across 30 complex + 14 '
-                             'solvent lambda windows. ABFE convergence is dominated by the '
-                             'near-fully-decoupled windows, so reduce with care.')
-        sGroup.addParam('minimizationSteps', params.IntParam, default=DEFAULT_MINIMIZATION_STEPS,
-                        expertLevel=params.LEVEL_ADVANCED, label='Minimization steps per window: ',
-                        help='Minimization steps applied to every '
-                             'one of the 44 windows. NOT a safe way to shorten a run: at 100 steps '
-                             'a freshly-solvated system still clashes and the first MD dies. Cut sampling time instead.')
-        sGroup.addParam('preEquilLength', params.FloatParam, default=0.0,
-                        expertLevel=params.LEVEL_ADVANCED,
-                        label='Pre-equilibration per leg: ',
-                        help='Before the alchemical windows, openfe runs a plain MD pre-equilibration '
-                             'of each leg (NVT + NPT equilibration). Its defaults are '
-                             'large and asymmetric - 0.25+0.5+5.0 ns for the complex leg and '
-                             '0.1+0.2+0.5 ns for the solvent leg.'
-                             'Leave at 0 to keep openfe\'s own values; set a value to use it for all '
-                             'three phases of BOTH legs.')
-
         gGroup = form.addGroup('Force field and thermodynamics')
         gGroup.addParam('smallMolFF', params.EnumParam, default=0, choices=SMALL_MOL_FFS,
                         label='Small molecule force field: ',
@@ -134,15 +100,49 @@ class ProtOpenFEABFE(EMProtocol):
                              'the solvent leg dies outright. Note openfe itself pads the two legs '
                              'differently (1.0 nm complex / 1.5 nm solvent); this single value is '
                              'applied to both.')
-        gGroup.addParam('protocolRepeats', params.IntParam, default=DEFAULT_PROTOCOL_REPEATS,
+
+        form.addSection(label='ABFE settings')
+        rGroup = form.addGroup('Boresch restraints')
+        rGroup.addParam('hostMinDistance', params.FloatParam, default=0.5,
+                        label='Host anchor min distance (nm): ',
+                        help='The closest a receptor atom may be to the ligand to be considered as a Boresch restraint '
+                             'anchor. openfe picks the actual anchor atoms itself within this shell, '
+                             'using RMSF, secondary structure and distance heuristics.')
+        rGroup.addParam('hostMaxDistance', params.FloatParam, default=1.5,
+                        label='Host anchor max distance (nm): ',
+                        help='The furthest a receptor atom may be to be considered as a restraint anchor.')
+
+        sGroup = form.addGroup('Sampling')
+        sGroup.addParam('protocolRepeats', params.IntParam, default=DEFAULT_PROTOCOL_REPEATS,
                         label='Independent repeats: ',
                         help='Independent replicas of each transformation, '
                              'averaged into the final estimate. With 1 repeat openfe reports an '
                              'uncertainty of exactly 0, meaning "no estimate".')
-        gGroup.addParam('equilLength', params.FloatParam, default=DEFAULT_EQUIL_LENGTH,
+        sGroup.addParam('productionLength', params.FloatParam, default=10.0,
+                        label='Production per window (ns): ',
+                        help='Production length for both legs. '
+                             'openfe\'s ABFE default is 10 ns per replica, across 30 complex + 14 '
+                             'solvent lambda windows. ABFE convergence is dominated by the '
+                             'near-fully-decoupled windows, so reduce with care.')
+        sGroup.addParam('minimizationSteps', params.IntParam, default=DEFAULT_MINIMIZATION_STEPS,
+                        expertLevel=params.LEVEL_ADVANCED, label='Minimization steps per window: ',
+                        help='Minimization steps applied to every '
+                             'one of the 44 windows. NOT a safe way to shorten a run: at 100 steps '
+                             'a freshly-solvated system still clashes and the first MD dies. Cut sampling time instead.')
+        sGroup.addParam('preEquilLength', params.FloatParam, default=0.0,
+                        expertLevel=params.LEVEL_ADVANCED,
+                        label='Pre-equilibration per leg: ',
+                        help='Before the alchemical windows, openfe runs a plain MD pre-equilibration '
+                             'of each leg (NVT + NPT equilibration). Its defaults are '
+                             'large and asymmetric - 0.25+0.5+5.0 ns for the complex leg and '
+                             '0.1+0.2+0.5 ns for the solvent leg.'
+                             'Leave at 0 to keep openfe\'s own values; set a value to use it for all '
+                             'three phases of BOTH legs.')
+        sGroup.addParam('equilLength', params.FloatParam, default=DEFAULT_EQUIL_LENGTH,
                         expertLevel=params.LEVEL_ADVANCED, label='Equilibration per window (ns): ',
                         help='Equilibration length, per lambda window '
                              '(distinct from the per-leg pre-equilibration above).')
+
 
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
