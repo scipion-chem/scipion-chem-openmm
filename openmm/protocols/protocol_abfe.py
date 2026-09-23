@@ -61,6 +61,8 @@ class ProtOpenFEABFE(ProtOpenFEBase):
     """
     _label = 'ABFE (OpenFE absolute binding free energy)'
     stepsExecutionMode = params.STEPS_PARALLEL
+    NO_TRANSFORMATIONS_MSG = ('The setup step produced no transformations - check the setup '
+                              'log in extra/ (the ligand may have failed charge assignment).')
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
@@ -184,12 +186,6 @@ class ProtOpenFEABFE(ProtOpenFEBase):
         Plugin.runScript(self, 'openfeSetupABFE.py', args=paramsFile, env=OPENMM_DIC,
                          cwd=self._getExtraPath())
 
-    # -- execution ----------------------------------------------------------------
-    def runAllTransformationsStep(self):
-        super().runAllTransformationsStep(
-            noneMsg='The setup step produced no transformations - check the setup log in extra/ '
-                    '(the ligand may have failed charge assignment).')
-
     # -- analysis -----------------------------------------------------------------
     def gatherStep(self):
         """`openfe gather-abfe` once per report type. The `dg` report is where ABFE_dG comes from,
@@ -257,7 +253,7 @@ class ProtOpenFEABFE(ProtOpenFEBase):
             self.info('No gather-abfe "dg" report; taking dG_bind from the result JSON instead. '
                       'Note its uncertainty is 0.0 for a single-repeat run, meaning "no estimate".')
         # A failed quickrun leaves nothing at all, in which case the columns stay empty.
-        return list(jsonResults.values())[0] if jsonResults else (None, None)
+        return next(iter(jsonResults.values()), (None, None))
 
     def createOutputStep(self):
         import pyworkflow.object as pwobj

@@ -61,7 +61,7 @@ def getBaseName(file):
 MIN_MBAR_SAMPLES = 100        # fewer samples/state and pymbar spins to its 10000-iteration ceiling
 MIN_EQUIL_TRAJ_FRAMES = 10    # fewer frames and the ABFE complex leg dies on an empty .xtc
 
-def _shortenInterval(obj, attr, prodLength, minCount):
+def shortenInterval(obj, attr, prodLength, minCount):
   """Shorten obj.attr so that prodLength still yields at least minCount of whatever it counts.
   Only ever shortens, so it is a no-op at openfe's own defaults."""
   from openff.units import unit
@@ -73,14 +73,14 @@ def _shortenInterval(obj, attr, prodLength, minCount):
 def ensureEnoughSamples(simSettings, minSamples=MIN_MBAR_SAMPLES):
   """Too few MBAR samples does not merely cost precision: pymbar never converges and burns CPU
   for tens of minutes, once per bootstrap resample."""
-  _shortenInterval(simSettings, 'time_per_iteration', simSettings.production_length, minSamples)
+  shortenInterval(simSettings, 'time_per_iteration', simSettings.production_length, minSamples)
   return simSettings
 
 def ensureTrajectoryFrames(simSettings, outputSettings, minFrames=MIN_EQUIL_TRAJ_FRAMES):
   """The ABFE complex leg picks its Boresch anchors from the RMSF over the pre-equilibration
   trajectory, so a 0-frame .xtc is fatal ("XDR read error = endoffile"), not cosmetic."""
-  _shortenInterval(outputSettings, 'trajectory_write_interval',
-                   simSettings.production_length, minFrames)
+  shortenInterval(outputSettings, 'trajectory_write_interval',
+                  simSettings.production_length, minFrames)
   return outputSettings
 
 def getGenerator(ligFF):

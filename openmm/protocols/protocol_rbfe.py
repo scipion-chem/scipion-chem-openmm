@@ -60,6 +60,9 @@ class ProtOpenFERBFE(ProtOpenFEBase):
     """
     _label = 'RBFE (OpenFE relative binding free energy)'
     stepsExecutionMode = params.STEPS_PARALLEL
+    NO_TRANSFORMATIONS_MSG = ('The planning step produced no transformations - check that '
+                              'the input ligands are congeneric enough for the atom mapper '
+                              'to connect them (see ligand_network.graphml in extra/).')
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
@@ -182,13 +185,6 @@ class ProtOpenFERBFE(ProtOpenFEBase):
 
         Plugin.runScript(self, 'openfeSetupRBFE.py', args=paramsFile, env=OPENMM_DIC,
                          cwd=self._getExtraPath())
-
-    # -- execution ----------------------------------------------------------------
-    def runAllTransformationsStep(self):
-        super().runAllTransformationsStep(
-            noneMsg='The planning step produced no transformations - check that the input ligands '
-                    'are congeneric enough for the atom mapper to connect them (see the '
-                    'ligand_network.graphml / setup log in extra/).')
 
     # -- analysis -----------------------------------------------------------------
     def mleBlockers(self, nEdges=None):

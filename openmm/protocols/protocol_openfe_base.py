@@ -138,11 +138,14 @@ class ProtOpenFEBase(EMProtocol):
         # runOpenMM, not a dedicated runner: openfe lives in the OpenMM conda env.
         Plugin.runOpenMM(self, 'openfe quickrun', args, cwd=self.getResultsDir())
 
-    def runAllTransformationsStep(self, noneMsg='The setup step produced no transformations.'):
+    # What to report when the setup step produced nothing to run; each protocol overrides it.
+    NO_TRANSFORMATIONS_MSG = 'The setup step produced no transformations.'
+
+    def runAllTransformationsStep(self):
         """Sequential: each quickrun already saturates a GPU, so parallel ones only contend."""
         names = self.getTransformationNames()
         if not names:
-            raise RuntimeError(noneMsg)
+            raise RuntimeError(self.NO_TRANSFORMATIONS_MSG)
         for i, name in enumerate(names, start=1):
             self.info(f'openfe quickrun {i}/{len(names)}: {name}')
             self.quickrunStep(name)
