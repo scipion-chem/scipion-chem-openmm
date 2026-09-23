@@ -4,7 +4,9 @@
 		"gpu": [
 			"test_openmm.TestOpenMMStripWaters",
 			"test_openmm.TestOpenMMSimulation",
-			"test_openmm.TestOpenMMInteractions"
+			"test_openmm.TestOpenMMInteractions",
+			"test_openfe.TestOpenFERBFE",
+			"test_openfe.TestOpenFEABFE"
 		],
 		"dependencies": [
 			

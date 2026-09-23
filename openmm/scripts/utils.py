@@ -57,6 +57,32 @@ def writeMol(mol, outFile, cid=-1, setName=False):
 def getBaseName(file):
   return os.path.splitext(os.path.basename(file.strip()))[0]
 
+# openfe minimums enforced here so that a short run errors out neither silently nor fatally.
+MIN_MBAR_SAMPLES = 100        # fewer samples/state and pymbar spins to its 10000-iteration ceiling
+MIN_EQUIL_TRAJ_FRAMES = 10    # fewer frames and the ABFE complex leg dies on an empty .xtc
+
+def shortenInterval(obj, attr, prodLength, minCount):
+  """Shorten obj.attr so that prodLength still yields at least minCount of whatever it counts.
+  Only ever shortens, so it is a no-op at openfe's own defaults."""
+  from openff.units import unit
+  prodPs = prodLength.m_as(unit.picosecond)
+  intervalPs = getattr(obj, attr).m_as(unit.picosecond)
+  if intervalPs > 0 and prodPs / intervalPs < minCount:
+    setattr(obj, attr, (prodPs / minCount) * unit.picosecond)
+
+def ensureEnoughSamples(simSettings, minSamples=MIN_MBAR_SAMPLES):
+  """Too few MBAR samples does not merely cost precision: pymbar never converges and burns CPU
+  for tens of minutes, once per bootstrap resample."""
+  shortenInterval(simSettings, 'time_per_iteration', simSettings.production_length, minSamples)
+  return simSettings
+
+def ensureTrajectoryFrames(simSettings, outputSettings, minFrames=MIN_EQUIL_TRAJ_FRAMES):
+  """The ABFE complex leg picks its Boresch anchors from the RMSF over the pre-equilibration
+  trajectory, so a 0-frame .xtc is fatal ("XDR read error = endoffile"), not cosmetic."""
+  shortenInterval(outputSettings, 'trajectory_write_interval',
+                  simSettings.production_length, minFrames)
+  return outputSettings
+
 def getGenerator(ligFF):
   from openmmforcefields.generators import EspalomaTemplateGenerator, GAFFTemplateGenerator, SMIRNOFFTemplateGenerator
   if 'espaloma' in ligFF.lower():
