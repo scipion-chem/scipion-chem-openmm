@@ -54,7 +54,8 @@ class TestOpenMMPrepareSystem(TestPrepareReceptor, TestExtractLigand):
         else:
             protPrepareS.inputSetOfMols.set(protPrepare)
             protPrepareS.inputSetOfMols.setExtended('outputSmallMolecules')
-            protPrepareS.inputLigand.set('SmallMolecule (g1_4erf_0R3_201-1_1 molecule)')
+            # Taken from the set rather than hard-coded: pwchem's extractor names ligands
+            protPrepareS.inputLigand.set(str(next(iter(protPrepare.outputSmallMolecules))))
 
         cls.launchProtocol(protPrepareS)
         return protPrepareS

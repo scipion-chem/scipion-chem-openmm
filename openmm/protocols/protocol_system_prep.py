@@ -461,20 +461,19 @@ class ProtOpenMMSystemPrep(EMProtocol):
       return getBaseName(self.getReceptorFilename())
 
     def getSpecifiedMolFile(self):
-        myMol = None
         for mol in self.inputSetOfMols.get():
           if mol.__str__() == self.inputLigand.get():
-            myMol = mol.clone()
-            break
-        if myMol == None:
-            print('The input ligand is not found')
-            return None
-        else:
-            molFile = myMol.getPoseFile()
+            molFile = mol.clone().getPoseFile()
             sdfFile = convertToSdf(self, molFile)
             paramFile = self.writePrepParamsFile([os.path.abspath(sdfFile)])
             pwchemPlugin.runScript(self, scriptLigPrepName, paramFile, env=RDKIT_DIC, cwd=self._getPath())
             return os.path.join(self.getLigandFileDir(), os.listdir(self.getLigandFileDir())[0])
+        raise ValueError(f'Ligand "{self.inputLigand.get()}" is not in the input set of molecules. ')
+
+    def getInputMolNames(self):
+      mols = self.inputSetOfMols.get()
+      return [mol.__str__() for mol in mols] if mols is not None else []
+
 
     def _warnings(self):
       ws = []
