@@ -47,6 +47,11 @@ class OpenMMSystem(MDSystem):
     self._nFrames = pwobj.Integer(kwargs.get('nFrames', None))
     self._nTime = pwobj.Float(kwargs.get('nTime', None))
 
+    # Alchemical binding free energy result (ABFE/RBFE protocols), mirroring
+    # gromacs.objects.data.GromacsSystem's _freeEnergy/_freeEnergyFile pair.
+    self._freeEnergy = pwobj.Float(kwargs.get('freeEnergy', None))
+    self._freeEnergyFile = pwobj.String(kwargs.get('freeEnergyFile', None))
+
   def __str__(self):
     strStr = '{} ({}'.format(self.getClassName(), os.path.basename(self.getSystemFile()))
     if self.hasTrajectory():
@@ -84,4 +89,16 @@ class OpenMMSystem(MDSystem):
 
   def setOpenmmdlDir(self, value):
     self._openmmdlDir.set(value)
+
+  def getFreeEnergy(self):
+    return self._freeEnergy.get()
+
+  def setFreeEnergy(self, value):
+    self._freeEnergy.set(float(value))
+
+  def getFreeEnergyFile(self):
+    return self._freeEnergyFile.get()
+
+  def setFreeEnergyFile(self, value):
+    self._freeEnergyFile.set(os.path.relpath(value))
 

@@ -25,6 +25,25 @@
 # **************************************************************************
 
 
-OPENMM_DIC = {'name': 'openmm',    'version': '8.3', 'home': 'OPENMM_HOME'}
+OPENMM_DIC = {'name': 'openmm',    'version': '8.4', 'home': 'OPENMM_HOME'}
 ESPALOMA_DIC = {'name': 'espaloma', 'version': '0.4.0', 'home': 'ESPALOMA_HOME'}
 ODUCK_DIC = {'name': 'openduck',    'version': '0.2.0', 'home': 'ODUCK_HOME'}
+
+# Open Free Energy (openfe) defaults for the RBFE/ABFE protocols
+# Default values reproduce the benchmark protocol of Baumann et al., J. Chem. Inf. Model. 2026, 66
+DEFAULT_TEMPERATURE = 298.15      # K
+DEFAULT_SOLVENT_PADDING = 1.5     # nm
+DEFAULT_PROTOCOL_REPEATS = 3
+DEFAULT_EQUIL_LENGTH = 1.0        # ns of NPT equilibration per window
+DEFAULT_RBFE_PRODUCTION = 5.0     # ns per lambda window (neutral transformations)
+DEFAULT_RBFE_N_REPLICAS = 11      # lambda windows (neutral transformations)
+DEFAULT_SMALL_MOL_FF = 'openff-2.2.0'   # Open Force Field Sage 2.2.0
+DEFAULT_CHARGE_METHOD = 'am1bcc'        # AM1-BCC via AmberTools/Antechamber
+DEFAULT_MINIMIZATION_STEPS = 5000       # openfe's own per-window default
+
+# Floor for the solvent padding
+MIN_SOLVENT_PADDING = 1.3               # nm
+
+# `openfe gather --report dg` has TWO hard requirements
+MIN_MLE_EDGES = 3
+MIN_MLE_REPEATS = 2

@@ -57,10 +57,22 @@ class Plugin(pwchem.Plugin):
         installer = InstallHelper(OPENMM_DIC['name'], packageHome=cls.getVar(OPENMM_DIC['home']),
                                   packageVersion=OPENMM_DIC['version'])
         home = cls.getEnvName(OPENMM_DIC)
-        # Installing package
+        # OpenMM is 8.4 (matching OPENMM_DIC, so env name and content agree) because openfe -
+        # needed by the RBFE/ABFE protocols - supports OpenMM 8.0, 8.1.2, 8.2 and 8.4 but
+        # explicitly NOT 8.3.0, which was this plugin's previous pin.
         installer.addCommand(
-            f'conda create -n {home} -c conda-forge espaloma=0.4.0 openmm=8.3 cuda-version=12.8 openmmdl=1.2.0 '
+            f'conda create -n {home} -c conda-forge espaloma=0.4.0 openmm=8.4 cuda-version=12.8 openmmdl=1.2.0 '
             f'-y ', 'OPENMM_ENV_CREATED'
+        ).addCommand(
+            # openfe is added as a SECOND step, not in the create above: asking conda to solve
+            # espaloma=0.4.0 (2023, old torch/dgl pins) together with a current openfe in one
+            # shot does not converge - measured, a bare two-package `espaloma=0.4.0 openfe=1.12.0`
+            # dry-run still had not solved after 7 minutes, while openfe+ambertools+openmm=8.4
+            # solved in 160s. Installing into the existing env pins espaloma as already-resolved
+            # and collapses the search space, so this either succeeds quickly or fails with a
+            # clear conflict instead of thrashing. ambertools comes along for AM1-BCC charges.
+            f'conda install -n {home} -c conda-forge openfe=1.12.0 ambertools -y ',
+            'OPENFE_INSTALLED'
         ).addCommand(
             f'wget {cls.getEspalomaModelUrl()} -O {cls.getEspalomaModelFile()} ',
             'ESPALOMA_MODEL_DOWNLOADED'
