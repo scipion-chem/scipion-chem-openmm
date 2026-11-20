@@ -1,6 +1,6 @@
 # **************************************************************************
 # *
-# * Authors:  Scipion-chem team (CNB-CSIC)
+# * Authors:  Joaquin Algorta (joaquin.algorta@cnb.csic.es)
 # *
 # * Biocomputing Unit, CNB-CSIC
 # *
@@ -230,7 +230,20 @@ if __name__ == "__main__":
                           float(pDic.get('perturbSigma', 0)), seed=int(pDic.get('seed', 0)))
     print(f"E {res['e0']:.0f} -> {res['e1']:.0f} kJ/mol, ligand RMSD {res['rmsd']:.2f} A, "
           f"{res['nPocketRes']} pocket residues", flush=True)
+    assert len(ligAtoms) == rdMol.GetNumAtoms(), (
+      f"Atom count mismatch: OpenMM={len(ligAtoms)}, "
+      f"RDKit={rdMol.GetNumAtoms()}"
+    )
+    topAtoms = list(modeller.topology.atoms())
 
+    for k, i in enumerate(ligAtoms):
+      rdElement = rdMol.GetAtomWithIdx(k).GetSymbol()
+      ommElement = topAtoms[i].element.symbol
+
+      assert rdElement == ommElement, (
+        f"Atom mapping mismatch at ligand atom {k}: "
+        f"RDKit={rdElement}, OpenMM={ommElement}"
+      )
     writeLigandSdf(rdMol, ligAtoms, res['pos'], outLig)
     writeProtein(modeller, res['pos'], outRec)
     writeProtein(modeller, res['pos'], outCplx, withLigand=True)
