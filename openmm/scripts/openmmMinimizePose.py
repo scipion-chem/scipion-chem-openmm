@@ -183,6 +183,147 @@ def minimizeAttempt(modeller, forcefield, pDic, radiusA, sigmaA, seed):
           'radius': radiusA, 'sigma': sigmaA}
 
 
+def getRDKitConnectivity(mol):
+  """Return indexed RDKit bonds, including bond order and aromaticity."""
+  return sorted(
+    (
+      min(b.GetBeginAtomIdx(), b.GetEndAtomIdx()),
+      max(b.GetBeginAtomIdx(), b.GetEndAtomIdx()),
+      str(b.GetBondType()),
+      bool(b.GetIsAromatic())
+    )
+    for b in mol.GetBonds()
+  )
+
+
+def getRDKitAdjacency(mol):
+  """Return the atom-index pairs connected by bonds in an RDKit molecule."""
+  return {
+    (min(b.GetBeginAtomIdx(), b.GetEndAtomIdx()),
+     max(b.GetBeginAtomIdx(), b.GetEndAtomIdx()))
+    for b in mol.GetBonds()
+  }
+
+
+def getOpenMMLigandAdjacency(topology, ligAtoms):
+  """Return ligand bonds using ligand-local indices in OpenMM atom order."""
+  globalToLocal = {globalIdx: localIdx for localIdx, globalIdx in enumerate(ligAtoms)}
+  adjacency = set()
+
+  for bond in topology.bonds():
+    i, j = bond.atom1.index, bond.atom2.index
+    if i in globalToLocal and j in globalToLocal:
+      a, b = globalToLocal[i], globalToLocal[j]
+      adjacency.add((min(a, b), max(a, b)))
+
+  return adjacency
+
+
+def getCIPAssignments(mol):
+  """Return assigned and unassigned tetrahedral stereocentres by atom index."""
+  from rdkit import Chem
+  Chem.AssignStereochemistry(mol, cleanIt=True, force=True)
+  return tuple(Chem.FindMolChiralCenters(
+    mol, force=True, includeUnassigned=True, includeCIP=True
+  ))
+
+
+def validateLigandTopology(rdMol, modeller, ligAtoms):
+  """Check atom count, atom identity/order and connectivity before minimization output."""
+  topAtoms = list(modeller.topology.atoms())
+
+  if len(ligAtoms) != rdMol.GetNumAtoms():
+    raise ValueError(
+      f"Atom count mismatch: OpenMM={len(ligAtoms)}, RDKit={rdMol.GetNumAtoms()}"
+    )
+
+  for k, globalIdx in enumerate(ligAtoms):
+    rdAtom = rdMol.GetAtomWithIdx(k)
+    ommAtom = topAtoms[globalIdx]
+
+    if ommAtom.element is None:
+      raise ValueError(f"OpenMM atom {globalIdx} has no element assigned")
+
+    rdElement = rdAtom.GetSymbol()
+    ommElement = ommAtom.element.symbol
+    if rdElement != ommElement:
+      raise ValueError(
+        f"Atom mapping mismatch at ligand atom {k}: "
+        f"RDKit={rdElement}, OpenMM={ommElement} (global index {globalIdx})"
+      )
+
+  rdAdjacency = getRDKitAdjacency(rdMol)
+  ommAdjacency = getOpenMMLigandAdjacency(modeller.topology, ligAtoms)
+
+  if rdAdjacency != ommAdjacency:
+    missing = sorted(rdAdjacency - ommAdjacency)
+    extra = sorted(ommAdjacency - rdAdjacency)
+    raise ValueError(
+      "RDKit/OpenMM ligand connectivity mismatch. "
+      f"Bonds missing from OpenMM (RDKit local atom indices): {missing}; "
+      f"extra OpenMM bonds: {extra}"
+    )
+
+  # Explicitly report hydrogen-neighbour counts as a more readable diagnostic.
+  for k, rdAtom in enumerate(rdMol.GetAtoms()):
+    rdH = sum(n.GetSymbol() == 'H' for n in rdAtom.GetNeighbors())
+    ommH = sum(
+      1 for a, b in ommAdjacency
+      if (a == k and topAtoms[ligAtoms[b]].element.symbol == 'H') or
+         (b == k and topAtoms[ligAtoms[a]].element.symbol == 'H')
+    )
+    if rdH != ommH:
+      raise ValueError(
+        f"Hydrogen-neighbour mismatch at ligand atom {k}: "
+        f"RDKit={rdH}, OpenMM={ommH}"
+      )
+
+  print(
+    f"Ligand topology validation passed: {rdMol.GetNumAtoms()} atoms, "
+    f"{len(rdAdjacency)} bonds; RDKit and OpenMM atom order/connectivity agree.",
+    flush=True
+  )
+
+
+def validateWrittenLigand(inputMol, outputFile):
+  """Check that the written SDF retains the input RDKit graph and stereochemistry."""
+  from rdkit import Chem
+
+  suppl = Chem.SDMolSupplier(outputFile, removeHs=False, sanitize=True)
+  outputMol = suppl[0] if len(suppl) else None
+  if outputMol is None:
+    raise ValueError(f"Could not read minimized ligand SDF: {outputFile}")
+
+  if inputMol.GetNumAtoms() != outputMol.GetNumAtoms():
+    raise ValueError(
+      f"Output SDF atom count changed: input={inputMol.GetNumAtoms()}, "
+      f"output={outputMol.GetNumAtoms()}"
+    )
+
+  inputConnectivity = getRDKitConnectivity(inputMol)
+  outputConnectivity = getRDKitConnectivity(outputMol)
+  if inputConnectivity != outputConnectivity:
+    raise ValueError(
+      "Ligand connectivity changed between input and output SDF. "
+      f"Input bonds: {inputConnectivity}; output bonds: {outputConnectivity}"
+    )
+
+  inputStereo = getCIPAssignments(Chem.Mol(inputMol))
+  outputStereo = getCIPAssignments(Chem.Mol(outputMol))
+  if inputStereo != outputStereo:
+    raise ValueError(
+      "Ligand stereochemistry changed between input and output SDF. "
+      f"Input stereocentres: {inputStereo}; output stereocentres: {outputStereo}"
+    )
+
+  print(
+    f"Output SDF validation passed: {outputMol.GetNumAtoms()} atoms, "
+    f"{len(outputConnectivity)} bonds; bond orders, aromaticity and CIP "
+    "assignments are preserved.",
+    flush=True
+  )
+
+
 ########################################################################################
 # Writing and checking
 ########################################################################################
@@ -230,21 +371,14 @@ if __name__ == "__main__":
                           float(pDic.get('perturbSigma', 0)), seed=int(pDic.get('seed', 0)))
     print(f"E {res['e0']:.0f} -> {res['e1']:.0f} kJ/mol, ligand RMSD {res['rmsd']:.2f} A, "
           f"{res['nPocketRes']} pocket residues", flush=True)
-    assert len(ligAtoms) == rdMol.GetNumAtoms(), (
-      f"Atom count mismatch: OpenMM={len(ligAtoms)}, "
-      f"RDKit={rdMol.GetNumAtoms()}"
-    )
-    topAtoms = list(modeller.topology.atoms())
 
-    for k, i in enumerate(ligAtoms):
-      rdElement = rdMol.GetAtomWithIdx(k).GetSymbol()
-      ommElement = topAtoms[i].element.symbol
+    # Validate that OpenMM retained the exact atom ordering and bond graph
+    # expected by the original RDKit molecule before transferring coordinates.
+    validateLigandTopology(rdMol, modeller, ligAtoms)
 
-      assert rdElement == ommElement, (
-        f"Atom mapping mismatch at ligand atom {k}: "
-        f"RDKit={rdElement}, OpenMM={ommElement}"
-      )
     writeLigandSdf(rdMol, ligAtoms, res['pos'], outLig)
+    validateWrittenLigand(rdMol, outLig)
+
     writeProtein(modeller, res['pos'], outRec)
     writeProtein(modeller, res['pos'], outCplx, withLigand=True)
     result.update({'status': 'minimized', 'rmsd': res['rmsd'], 'e0': res['e0'], 'e1': res['e1'],
